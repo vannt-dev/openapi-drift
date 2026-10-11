@@ -43,15 +43,6 @@
       }
     },
     {
-      "id": "file:.github/dependabot.yml",
-      "module": "deps",
-      "hash": "963af5766e12381d12a77362fc3153e4e0e9efcf89b9e91b65ea439179dcfd24",
-      "target": {
-        "kind": "file",
-        "path": ".github/dependabot.yml"
-      }
-    },
-    {
       "id": "file:.github/ISSUE_TEMPLATE/bug_report.yml",
       "module": "health",
       "hash": "7f4cc94f4d18852f420550145ff3da56394629c2842666108f819d2fd9558c3a",
@@ -135,7 +126,7 @@
     {
       "id": "file:release-please-config.json",
       "module": "release",
-      "hash": "dc57f64e68539030949884655c6339a7dbaaac16a2f15949a0645369b7afafd1",
+      "hash": "08f9b60d3eebf0bf99082da9dbe7188f487e82d1a231faa2bb99321b7176366a",
       "target": {
         "kind": "file",
         "path": "release-please-config.json"
