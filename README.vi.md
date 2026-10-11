@@ -55,15 +55,15 @@ openapi-drift routes --source src                                # chỉ liệt 
 openapi-drift lint --spec openapi.yaml                           # lỗi của chính tài liệu
 ```
 
-| Tuỳ chọn | Ý nghĩa |
-| --- | --- |
-| `--spec <file>` | Tài liệu OpenAPI 3, YAML hoặc JSON. |
-| `--source <dir>` | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`. |
-| `--framework` | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`. |
+| Tuỳ chọn          | Ý nghĩa                                                                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--spec <file>`   | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                                                                                          |
+| `--source <dir>`  | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                          |
+| `--framework`     | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`.                                                                                 |
 | `--prefix <path>` | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: NestJS `app.setGlobalPrefix('api')`, mount Express dựng động. Base path của tài liệu (`servers[0].url`) được tự đọc. |
-| `--format` | `text` (mặc định), `markdown` hoặc `json`. |
-| `--output <file>` | Ghi thêm báo cáo ra file. |
-| `--fail-on` | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo. |
+| `--format`        | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                   |
+| `--output <file>` | Ghi thêm báo cáo ra file.                                                                                                                                                    |
+| `--fail-on`       | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo.                                         |
 
 Mã thoát: `0` không lệch, `1` có lệch, `2` dùng sai hoặc tài liệu có lỗi (`lint` liệt kê trước).
 

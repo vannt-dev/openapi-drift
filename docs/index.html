@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>openapi-drift</title>
+    <meta
+      name="description"
+      content="Keeps an OpenAPI document honest: compares it with the routes in your NestJS or Express code and reports the drift, as a CLI and a GitHub Action."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M9 11h14M9 16h9M9 21h14' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #111827;
+        --muted: #4b5563;
+        --line: #e5e7eb;
+        --accent: #2563eb;
+        --accent-fg: #ffffff;
+        --code-bg: #0f172a;
+        --code-fg: #e2e8f0;
+        --card: #f9fafb;
+        --red: #dc2626;
+        --amber: #b45309;
+        --green: #15803d;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #0b1020;
+          --fg: #e5e7eb;
+          --muted: #9ca3af;
+          --line: #1f2937;
+          --accent: #60a5fa;
+          --accent-fg: #0b1020;
+          --code-bg: #111827;
+          --code-fg: #e5e7eb;
+          --card: #111827;
+          --red: #f87171;
+          --amber: #fbbf24;
+          --green: #4ade80;
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #0b1020;
+        --fg: #e5e7eb;
+        --muted: #9ca3af;
+        --line: #1f2937;
+        --accent: #60a5fa;
+        --accent-fg: #0b1020;
+        --code-bg: #111827;
+        --code-fg: #e5e7eb;
+        --card: #111827;
+        --red: #f87171;
+        --amber: #fbbf24;
+        --green: #4ade80;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.6 system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      header {
+        padding: 56px 0 32px;
+      }
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      nav a {
+        color: var(--fg);
+        text-decoration: none;
+        margin-left: 16px;
+      }
+      nav .brand {
+        font-weight: 700;
+        margin: 0;
+      }
+      nav select {
+        font: inherit;
+        padding: 4px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      h1 {
+        font-size: clamp(32px, 6vw, 52px);
+        line-height: 1.1;
+        margin: 0 0 16px;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        font-size: 19px;
+        color: var(--muted);
+        max-width: 720px;
+        margin: 0 0 24px;
+      }
+      .cta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 18px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        color: var(--fg);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: var(--accent-fg);
+        border-color: var(--accent);
+      }
+      pre {
+        background: var(--code-bg);
+        color: var(--code-fg);
+        padding: 18px 20px;
+        border-radius: 10px;
+        overflow-x: auto;
+        font:
+          13.5px/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        margin: 0;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+      p code,
+      li code,
+      td code {
+        background: var(--card);
+        border: 1px solid var(--line);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      .miss {
+        color: var(--red);
+      }
+      .extra {
+        color: var(--amber);
+      }
+      .ok {
+        color: var(--green);
+      }
+      .dim {
+        color: #94a3b8;
+      }
+      section {
+        padding: 32px 0;
+        border-top: 1px solid var(--line);
+      }
+      h2 {
+        font-size: 26px;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0 0 20px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 18px 20px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 17px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 15px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      footer {
+        padding: 32px 0 48px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 14px;
+      }
+      footer a {
+        color: var(--fg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav>
+        <p class="brand">openapi-drift</p>
+        <div>
+          <a href="#how" data-i18n="nav.how">How it works</a>
+          <a href="#action" data-i18n="nav.action">GitHub Action</a>
+          <a href="https://github.com/vannt-dev/openapi-drift">GitHub</a>
+          <a href="https://www.npmjs.com/package/openapi-drift">npm</a>
+          <select id="lang" aria-label="Language">
+            <option value="en">English</option>
+            <option value="vi">Tiếng Việt</option>
+          </select>
+        </div>
+      </nav>
+
+      <header>
+        <h1 data-i18n="hero.h1">Your OpenAPI document, checked against the code that serves it.</h1>
+        <p class="lead" data-i18n="hero.lead">
+          openapi-drift reads the routes your NestJS or Express code actually declares, compares them with the document, and fails the build
+          when they disagree, in either direction. No AI, no network, no build of your project.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
+          <a class="btn" href="https://github.com/vannt-dev/openapi-drift#readme" data-i18n="cta.docs">Documentation</a>
+          <a class="btn" href="https://github.com/vannt-dev/openapi-drift/blob/main/README.vi.md">Tiếng Việt</a>
+        </div>
+      </header>
+
+      <pre><span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src --prefix /api
+openapi.yaml: 9 operations under /api
+src: 12 routes under /api
+
+<b>In the code, not in the document (5):</b>
+  <span class="miss">GET     /api/health</span> (src/health.controller.ts:5)
+  <span class="miss">HEAD    /api/health</span> (src/health.controller.ts:10)
+  <span class="miss">GET     /api/legacy/ping</span> (src/health.controller.ts:18)
+  <span class="miss">DELETE  /api/users/{id}</span> (src/users/users.controller.ts:27) — the path exists with GET, PATCH
+  <span class="miss">GET     /api/v0/ping</span> (src/health.controller.ts:18)
+
+<b>In the document, not in the code (2):</b>
+  <span class="extra">POST    /api/orders</span> (createOrder) — the path exists with GET
+  <span class="extra">GET     /api/users/{id}/avatar</span> (getAvatar)
+
+<b>Path parameters named differently (1, not a failure):</b>
+  GET     /api/orders/{id}/items: document {id}, code {orderId} (src/orders/orders.controller.ts:10)
+
+7 drifts.</pre>
+
+      <section id="why">
+        <h2 data-i18n="why.h2">Why</h2>
+        <p class="sub" data-i18n="why.sub">
+          Everything built on the document is only as good as the document: generated tests, client SDKs, mocks, the reviewer reading it. A
+          document that drifts from the code makes all of them wrong without anyone noticing.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <h3 data-i18n="why.1.h">Both directions</h3>
+            <p data-i18n="why.1">
+              Routes the code serves but the document does not describe, and operations the document promises but no route serves.
+            </p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="why.2.h">Read from the source</h3>
+            <p data-i18n="why.2">
+              NestJS decorators and Express calls are read from the source text. Nothing is installed or started, so it runs in a second on
+              any CI runner.
+            </p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="why.3.h">Names do not matter, routes do</h3>
+            <p data-i18n="why.3">
+              <code>/users/{id}</code> and <code>/Users/:userId</code> are the same route; the different parameter names are a note, not a
+              failure.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <h2 data-i18n="how.h2">What is read</h2>
+        <table>
+          <tr>
+            <th>NestJS</th>
+            <td data-i18n="how.nest">
+              <code>@Controller('users')</code>, <code>@Controller({ path })</code>, <code>@Controller(['a', 'b'])</code> with
+              <code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Patch</code>, <code>@Delete</code>, <code>@Head</code>,
+              <code>@Options</code>, <code>@All</code>. The global prefix is given with <code>--prefix</code>.
+            </td>
+          </tr>
+          <tr>
+            <th>Express</th>
+            <td data-i18n="how.express">
+              <code>app.get('/x', ...)</code>, <code>router.post(...)</code>, <code>app.route('/x').get().post()</code>,
+              <code>app.all</code>, with routers mounted by <code>app.use('/prefix', router)</code> in the same file or imported from
+              another.
+            </td>
+          </tr>
+          <tr>
+            <th data-i18n="how.doc.h">Document</th>
+            <td data-i18n="how.doc">
+              OpenAPI 3.x, YAML or JSON. The base path of <code>servers[0].url</code> is applied. <code>openapi-drift lint</code> lists the
+              document's own problems first.
+            </td>
+          </tr>
+        </table>
+      </section>
+
+      <section id="action">
+        <h2 data-i18n="act.h2">In a pull request</h2>
+        <p class="sub" data-i18n="act.sub">
+          The action writes the Markdown report to the job summary and exposes the number of drifts; <code>fail-on</code> chooses which
+          direction fails the job.
+        </p>
+        <pre>- uses: vannt-dev/openapi-drift@v0
+  with:
+    spec: openapi.yaml
+    source: src
+    prefix: /api      <span class="dim"># optional</span>
+    fail-on: any      <span class="dim"># or spec, code, none</span></pre>
+      </section>
+
+      <section id="start">
+        <h2 data-i18n="gs.h2">Get started</h2>
+        <p class="sub" data-i18n="gs.sub">Node.js 22.18 or newer.</p>
+        <pre><span class="dim">$</span> npm install -g openapi-drift
+<span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src
+<span class="dim">$</span> openapi-drift routes --source src          <span class="dim"># what the code declares</span>
+<span class="dim">$</span> openapi-drift lint --spec openapi.yaml     <span class="dim"># the document's own problems</span></pre>
+      </section>
+
+      <footer>
+        <span>openapi-drift · <a href="https://github.com/vannt-dev/openapi-drift/blob/main/LICENSE">MIT</a> · Van Nguyen</span>
+        ·
+        <a href="https://github.com/vannt-dev/openapi-postman-test-generator">openapi-postman-test-generator</a> ·
+        <a href="https://vannt-dev.github.io/aiws-factory/">AIWS</a>
+      </footer>
+    </div>
+
+    <script>
+      var I18N = {
+        vi: {
+          'nav.how': 'Cách hoạt động',
+          'nav.action': 'GitHub Action',
+          'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với chính code đang phục vụ nó.',
+          'hero.lead':
+            'openapi-drift đọc các route mà code NestJS hoặc Express của bạn thật sự khai báo, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không AI, không mạng, không cần build dự án.',
+          'cta.start': 'Bắt đầu',
+          'cta.docs': 'Tài liệu',
+          'why.h2': 'Vì sao',
+          'why.sub':
+            'Mọi thứ dựng trên tài liệu chỉ đúng khi tài liệu đúng: test sinh tự động, SDK client, mock, người review đọc nó. Tài liệu lệch khỏi code làm tất cả sai mà không ai nhận ra.',
+          'why.1.h': 'Cả hai chiều',
+          'why.1': 'Route code đang phục vụ mà tài liệu không mô tả, và operation tài liệu hứa mà không route nào phục vụ.',
+          'why.2.h': 'Đọc từ mã nguồn',
+          'why.2':
+            'Decorator NestJS và lời gọi Express được đọc từ văn bản nguồn. Không cài, không khởi động gì, nên chạy trong một giây trên mọi runner CI.',
+          'why.3.h': 'Tên không quan trọng, route mới quan trọng',
+          'why.3':
+            '<code>/users/{id}</code> và <code>/Users/:userId</code> là một route; tên tham số khác nhau chỉ là ghi chú, không fail.',
+          'how.h2': 'Đọc được gì',
+          'how.nest':
+            "<code>@Controller('users')</code>, <code>@Controller({ path })</code>, <code>@Controller(['a', 'b'])</code> cùng <code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Patch</code>, <code>@Delete</code>, <code>@Head</code>, <code>@Options</code>, <code>@All</code>. Global prefix truyền qua <code>--prefix</code>.",
+          'how.express':
+            "<code>app.get('/x', ...)</code>, <code>router.post(...)</code>, <code>app.route('/x').get().post()</code>, <code>app.all</code>, với router mount bằng <code>app.use('/prefix', router)</code> trong cùng file hoặc import từ file khác.",
+          'how.doc.h': 'Tài liệu',
+          'how.doc':
+            'OpenAPI 3.x, YAML hoặc JSON. Base path trong <code>servers[0].url</code> được áp dụng. <code>openapi-drift lint</code> liệt kê lỗi của chính tài liệu trước.',
+          'act.h2': 'Trong pull request',
+          'act.sub': 'Action ghi báo cáo Markdown vào job summary và đưa ra số lệch; <code>fail-on</code> chọn chiều nào làm job fail.',
+          'gs.h2': 'Bắt đầu',
+          'gs.sub': 'Node.js 22.18 trở lên.',
+        },
+      };
+      var sel = document.getElementById('lang');
+      var EN = {};
+      document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        EN[el.getAttribute('data-i18n')] = el.innerHTML;
+      });
+      function apply(lang) {
+        var dict = lang === 'en' ? EN : I18N[lang] || EN;
+        document.querySelectorAll('[data-i18n]').forEach(function (el) {
+          var k = el.getAttribute('data-i18n');
+          if (dict[k] !== undefined) el.innerHTML = dict[k];
+        });
+        document.documentElement.lang = lang;
+        sel.value = lang;
+        try {
+          localStorage.setItem('lang', lang);
+        } catch (e) {}
+      }
+      var saved = null;
+      try {
+        saved = localStorage.getItem('lang');
+      } catch (e) {}
+      var initial = saved || (navigator.language && navigator.language.toLowerCase().indexOf('vi') === 0 ? 'vi' : 'en');
+      if (initial !== 'en') apply(initial);
+      sel.addEventListener('change', function () {
+        apply(sel.value);
+      });
+    </script>
+  </body>
+</html>

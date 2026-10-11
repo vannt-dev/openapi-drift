@@ -27,7 +27,7 @@ export default tseslint.config(
     rules: { '@typescript-eslint/no-floating-promises': 'off' },
   },
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     ...tseslint.configs.disableTypeChecked,
   }
 );
