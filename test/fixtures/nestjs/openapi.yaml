@@ -1,0 +1,93 @@
+openapi: 3.0.3
+info:
+  title: Shop API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/api
+paths:
+  /users:
+    get:
+      operationId: listUsers
+      responses:
+        '200':
+          description: ok
+    post:
+      operationId: createUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: created
+  /users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getUser
+      responses:
+        '200':
+          description: ok
+    patch:
+      operationId: updateUser
+      responses:
+        '200':
+          description: ok
+  # drift 1: the code serves DELETE /users/{id}, the document does not describe it
+  /users/{id}/avatar:
+    # drift 2: described, but no route serves it
+    get:
+      operationId: getAvatar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok
+  /orders:
+    get:
+      operationId: listOrders
+      responses:
+        '200':
+          description: ok
+    # drift 3: described POST /orders, the code has none (the path exists with GET)
+    post:
+      operationId: createOrder
+      responses:
+        '201':
+          description: created
+  /orders/{id}/items:
+    # not a drift: same operation, the parameter is named orderId in the code
+    get:
+      operationId: listOrderItems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok
+  /orders/{orderId}:
+    put:
+      operationId: replaceOrder
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok
+  # drift 4 and 5: GET /health and HEAD /health are served, not described
+  # drift 6 and 7: GET /legacy/ping and GET /v0/ping are served, not described

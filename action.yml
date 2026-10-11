@@ -1,0 +1,70 @@
+name: OpenAPI drift
+description: Compares an OpenAPI document with the routes in your NestJS or Express code and fails the job on drift.
+author: Van Nguyen
+branding:
+  icon: git-compare
+  color: blue
+
+inputs:
+  spec:
+    description: The OpenAPI 3 document (YAML or JSON).
+    required: true
+  source:
+    description: The source tree of the backend.
+    required: false
+    default: .
+  framework:
+    description: nestjs, express or auto.
+    required: false
+    default: auto
+  prefix:
+    description: A prefix the code adds to every route and the source does not show (NestJS setGlobalPrefix).
+    required: false
+    default: ''
+  fail-on:
+    description: 'any: fail on drift in either direction; spec: only routes the document lacks; code: only operations the code lacks; none: never fail.'
+    required: false
+    default: any
+  report:
+    description: Where to write the Markdown report; it is also added to the job summary.
+    required: false
+    default: openapi-drift.md
+
+outputs:
+  drifts:
+    description: The number of drifts found (routes missing in the document plus operations missing in the code).
+    value: ${{ steps.check.outputs.drifts }}
+  report:
+    description: The path of the Markdown report.
+    value: ${{ inputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install openapi-drift
+      shell: bash
+      run: npm ci --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH" && npm run build --prefix "$GITHUB_ACTION_PATH"
+      env:
+        npm_config_update_notifier: 'false'
+    - name: Check
+      id: check
+      shell: bash
+      env:
+        SPEC: ${{ inputs.spec }}
+        SOURCE: ${{ inputs.source }}
+        FRAMEWORK: ${{ inputs.framework }}
+        PREFIX: ${{ inputs.prefix }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        REPORT: ${{ inputs.report }}
+      run: |
+        set +e
+        node "$GITHUB_ACTION_PATH/bin/openapi-drift.js" check --spec "$SPEC" --source "$SOURCE" --framework "$FRAMEWORK" \
+          --prefix "$PREFIX" --fail-on "$FAIL_ON" --format markdown --output "$REPORT"
+        status=$?
+        set -e
+        if [ -f "$REPORT" ]; then
+          cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          drifts=$(head -1 "$REPORT" | grep -oE '[0-9]+ drift' | grep -oE '[0-9]+' || echo 0)
+          echo "drifts=$drifts" >> "$GITHUB_OUTPUT"
+        fi
+        exit $status
