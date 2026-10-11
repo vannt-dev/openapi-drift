@@ -43,7 +43,8 @@ runs:
   steps:
     - name: Install openapi-drift
       shell: bash
-      run: npm ci --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH" && npm run build --prefix "$GITHUB_ACTION_PATH"
+      # a full install: the build needs TypeScript, a dev dependency
+      run: npm ci --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH" && npm run build --prefix "$GITHUB_ACTION_PATH"
       env:
         npm_config_update_notifier: 'false'
     - name: Check
