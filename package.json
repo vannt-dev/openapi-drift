@@ -1,6 +1,6 @@
 {
   "name": "openapi-drift",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Keeps an OpenAPI document honest: compares it with the routes in your NestJS or Express code and reports the drift, as a CLI and a GitHub Action.",
   "keywords": [
     "openapi",
@@ -60,6 +60,9 @@
     "globals": "^17.13.0",
     "prettier": "^3.9.9",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.70.0"
+    "typescript-eslint": "^8.70.0",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "lefthook": "^2.2.1"
   }
 }
