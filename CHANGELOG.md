@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.1.0 (2026-10-11)
+
+
+### Features
+
+* compare an OpenAPI document with NestJS and Express routes ([7a9f374](https://github.com/vannt-dev/openapi-drift/commit/7a9f3742c9e6113d5d1571826f9c87c4237abe3a))
+
+
+### Bug Fixes
+
+* **action:** install the dev dependencies the build needs ([e99160f](https://github.com/vannt-dev/openapi-drift/commit/e99160f5e23dbecba93d01c78beb874bc10c2d8f))
+
 ## [Unreleased]
 
 ### Added
