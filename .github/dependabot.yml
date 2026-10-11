@@ -17,6 +17,10 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+      # TypeScript 7 (the Go port) does not run this project's type-aware ESLint yet; added by hand
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:
