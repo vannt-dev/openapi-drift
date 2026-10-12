@@ -33,6 +33,8 @@ options:
   --ignore-file <file>   ignore patterns from a file, one a line, # starts a comment
   --baseline <file>      drift that is known and accepted: it is reported and does not fail the run
   --update-baseline      write the drift of this run to the --baseline file and exit 0
+  --strict               query parameters and status codes that differ between an operation and its
+                         handler are always reported; with this they fail the run as well
   --version, --help
 
 exit codes: 0 no drift (or --fail-on none), 1 drift, 2 bad usage or an unreadable document`;
@@ -45,6 +47,7 @@ export interface Options extends Partial<Record<ValueFlag, string>> {
   /** Every `--ignore`, in the order given. */
   ignore?: string[];
   'update-baseline'?: boolean;
+  strict?: boolean;
   help?: boolean;
   version?: boolean;
 }
@@ -66,6 +69,7 @@ export function parseArgs(argv: string[]): Options {
       if (v === undefined || v.startsWith('--')) throw new Error('--ignore needs a value');
       (opts.ignore ??= []).push(v);
     } else if (a === '--update-baseline') opts['update-baseline'] = true;
+    else if (a === '--strict') opts.strict = true;
     else if (a.startsWith('--') && isValueFlag(a.slice(2))) {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) throw new Error(`${a} needs a value`);
@@ -176,7 +180,12 @@ function routes(opts: Options, io: Io): number {
   io.out(`${source}: ${found.routes.length} routes (${found.framework})\n`);
   const read = readFromCode(found.app, process.cwd());
   if (read) io.out(`  read from the code: ${read}\n`);
-  for (const r of found.routes) io.out(`  ${r.method.toUpperCase().padEnd(7)} ${r.path}  ${relFile(r.file)}:${r.line}\n`);
+  for (const r of found.routes) {
+    // what was read of the handler: `?page&sort -> 200`
+    const seen = [r.query?.names.length ? `?${r.query.names.join('&')}` : '', r.statuses?.length ? `-> ${r.statuses.join(', ')}` : ''];
+    const more = seen.filter(Boolean).join(' ');
+    io.out(`  ${r.method.toUpperCase().padEnd(7)} ${r.path}  ${relFile(r.file)}:${r.line}${more ? `  ${more}` : ''}\n`);
+  }
   return 0;
 }
 
@@ -214,7 +223,8 @@ function check(opts: Options, io: Io): number {
     return 0;
   }
   const result = applyIgnore(opts.baseline ? applyBaseline(compared, loadBaseline(opts.baseline)) : compared, ignore);
-  const ctx = { spec: file, source, root: process.cwd(), ...(found.app ? { app: found.app } : {}) };
+  const strict = opts.strict === true;
+  const ctx = { spec: file, source, root: process.cwd(), strict, ...(found.app ? { app: found.app } : {}) };
   const report =
     format === 'json' ? jsonReport(result, ctx) + '\n' : format === 'markdown' ? markdownReport(result, ctx) : textReport(result, ctx);
   io.out(report);
@@ -222,5 +232,5 @@ function check(opts: Options, io: Io): number {
     fs.mkdirSync(path.dirname(path.resolve(opts.output)), { recursive: true });
     fs.writeFileSync(opts.output, report);
   }
-  return hasDrift(result, failOn) ? 1 : 0;
+  return hasDrift(result, failOn, { strict }) ? 1 : 0;
 }

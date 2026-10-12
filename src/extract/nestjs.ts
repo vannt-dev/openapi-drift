@@ -1,7 +1,18 @@
 import path from 'node:path';
-import { sourceFiles, readText, stripComments, lineOf, stringLiterals, toTemplate, closingBracket } from '../files.ts';
+import {
+  sourceFiles,
+  readText,
+  stripComments,
+  lineOf,
+  stringLiterals,
+  toTemplate,
+  closingBracket,
+  splitTopLevel,
+  wholeLiteral,
+} from '../files.ts';
 import { joinPath } from '../openapi.ts';
 import { NEUTRAL, excludes, readNestApp, versionsOf } from './nest-app.ts';
+import { HTTP_STATUS, detailsOf, type HandlerDetails } from './handler.ts';
 import type { AppSettings, ExtractOptions, HttpMethod, Route } from '../types.ts';
 
 export { readNestApp } from './nest-app.ts';
@@ -119,18 +130,65 @@ function routesOfFile(src: string, file: string, scope: Scope): Route[] {
       if (!subPaths.length) subPaths.push('');
       const line = lineOf(src, d.start);
       const segments = versionSegments(scope, ownVersions ?? controller.versions);
+      const handler = handlerOf(src, block);
       for (const cp of controller.paths) {
         for (const sp of subPaths) {
           for (const method of methods) {
             // the prefix leaves a route out by its own path, the version not counted
             const prefix = scope.excluded(joinPath(cp, sp), method) ? '' : scope.prefix;
-            for (const segment of segments) out.push({ method, path: toTemplate(joinPath(prefix, segment, cp, sp)), file, line });
+            // NestJS answers 201 to a POST and 200 to anything else; `@All()` is not a POST to it
+            const details = detailsOf({
+              query: handler.query,
+              statuses: handler.statuses === 'default' ? [method === 'post' && d.name !== 'All' ? 201 : 200] : handler.statuses,
+            });
+            for (const segment of segments) {
+              out.push({ method, path: toTemplate(joinPath(prefix, segment, cp, sp)), file, line, ...details });
+            }
           }
         }
       }
     }
   }
   return out;
+}
+
+/** What a handler's decorators and signature show; `'default'` is the status NestJS gives when none is set. */
+interface NestHandler {
+  query: HandlerDetails['query'];
+  statuses: number[] | 'default' | undefined;
+}
+
+/**
+ * The query parameters and the status of the handler a block of decorators belongs to.
+ *
+ * The query is known when every `@Query` of the signature has a name; `@Query() dto` and `@Req()` leave it
+ * unknown. The status is `@HttpCode`'s, or the default; a handler that takes the response (`@Res()` without
+ * `passthrough`) or redirects writes its own, and a status that is not a number or an `HttpStatus` name is unknown.
+ */
+function handlerOf(src: string, block: Decorator[]): NestHandler {
+  const end = (block[block.length - 1] as Decorator).end;
+  const open = src.indexOf('(', end);
+  // between the decorators and the signature: modifiers and the name of the method, nothing else
+  const header = open < 0 ? '' : src.slice(end, open);
+  if (!/^\s*(?:(?:public|private|protected|static|async|override)\s+)*[A-Za-z_$][\w$]*\s*(?:<[^>]*>)?\s*$/.test(header)) {
+    return { query: undefined, statuses: undefined };
+  }
+  const params = decoratorsOf(src.slice(open + 1, closingBracket(src, open)));
+  const takes = (...names: string[]): Decorator[] => params.filter((p) => names.includes(p.name));
+
+  let query: HandlerDetails['query'];
+  if (!takes('Req', 'Request').length) {
+    const names = takes('Query').map((q) => wholeLiteral(splitTopLevel(q.args)[0] ?? ''));
+    if (names.every((n) => n !== undefined)) query = { names: [...new Set(names)], complete: true };
+  }
+
+  const ownResponse = takes('Res', 'Response').some((r) => !/\bpassthrough\s*:\s*true\b/.test(r.args));
+  if (ownResponse || block.some((d) => d.name === 'Redirect')) return { query, statuses: undefined };
+  const code = block.find((d) => d.name === 'HttpCode');
+  if (!code) return { query, statuses: 'default' };
+  const given = code.args.trim();
+  const status = /^\d{3}$/.test(given) ? Number(given) : HTTP_STATUS[/^(?:\w+\.)?HttpStatus\.(\w+)$/.exec(given)?.[1] ?? ''];
+  return { query, statuses: status === undefined ? undefined : [status] };
 }
 
 /**

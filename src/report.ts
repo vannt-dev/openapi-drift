@@ -40,9 +40,10 @@ function setAside(result: DriftResult): { accepted: number; ignored: number; res
 }
 
 /** The result as plain text for a terminal. */
-export function textReport(result: DriftResult, { spec, source, root, app }: ReportContext): string {
+export function textReport(result: DriftResult, { spec, source, root, app, strict = false }: ReportContext): string {
   const lines: string[] = [];
   const total = result.missingInSpec.length + result.missingInCode.length;
+  const details = result.queryMismatch.length + result.statusMismatch.length;
   const { accepted, ignored, resolved } = setAside(result);
   const read = readFromCode(app, root);
   lines.push(`${spec}: ${plural(result.counts.spec, 'operation')}${result.base ? ` under ${result.base}` : ''}`);
@@ -65,6 +66,25 @@ export function textReport(result: DriftResult, { spec, source, root, app }: Rep
       );
     }
   }
+  const aside = strict ? '' : ', not a failure';
+  if (result.queryMismatch.length) {
+    lines.push('', `Query parameters that differ (${result.queryMismatch.length}${aside}):`);
+    for (const r of result.queryMismatch) {
+      const sides = [
+        r.codeOnly.length ? `in the code only: ${r.codeOnly.join(', ')}` : '',
+        r.specOnly.length ? `in the document only: ${r.specOnly.join(', ')}` : '',
+      ];
+      lines.push(`  ${verb(r.method)} ${r.path}: ${sides.filter(Boolean).join('; ')}${where(r, root)}`);
+    }
+  }
+  if (result.statusMismatch.length) {
+    lines.push('', `Status codes that differ (${result.statusMismatch.length}${aside}):`);
+    for (const r of result.statusMismatch) {
+      lines.push(
+        `  ${verb(r.method)} ${r.path}: the code answers ${r.codeStatuses.join(', ')}; the document describes ${r.specResponses.join(', ')}${where(r, root)}`
+      );
+    }
+  }
   if (accepted) {
     lines.push('', `Accepted by the baseline (${accepted}, not a failure):`);
     for (const r of result.accepted?.missingInSpec ?? []) lines.push(`  ${verb(r.method)} ${r.path}${where(r, root)} — ${IN_CODE}`);
@@ -79,14 +99,19 @@ export function textReport(result: DriftResult, { spec, source, root, app }: Rep
   lines.push('');
   if (total) lines.push(`${plural(total, 'drift')}${accepted ? `, and ${accepted} accepted by the baseline` : ''}.`);
   else if (accepted) lines.push(`No new drift: ${accepted} accepted by the baseline.`);
+  else if (details) lines.push('No drift in the routes; what differs is in what the operations take and answer.');
   else lines.push('No drift: the document and the code agree.');
+  if (strict && details) lines.push(`${plural(details, 'difference')} fail${details === 1 ? 's' : ''} the run (--strict).`);
   return lines.join('\n') + '\n';
 }
 
 /** The result as Markdown (a pull request comment, a job summary). */
-export function markdownReport(result: DriftResult, { spec, source, root, app }: ReportContext): string {
+export function markdownReport(result: DriftResult, { spec, source, root, app, strict = false }: ReportContext): string {
   const lines: string[] = [];
   const total = result.missingInSpec.length + result.missingInCode.length;
+  const details = result.queryMismatch.length + result.statusMismatch.length;
+  const aside = strict ? '' : ' (not a failure)';
+  const codes = (list: (string | number)[]): string => list.map((x) => `\`${x}\``).join(', ');
   const { accepted, ignored, resolved } = setAside(result);
   lines.push(`## OpenAPI drift: ${total ? plural(total, 'drift') : 'none'}`, '');
   lines.push(
@@ -122,6 +147,16 @@ export function markdownReport(result: DriftResult, { spec, source, root, app }:
     ['Operation', 'Document', 'Code']
   );
   table(
+    `Query parameters that differ${aside}`,
+    result.queryMismatch.map((r) => [`\`${r.method.toUpperCase()} ${r.path}\``, codes(r.codeOnly), codes(r.specOnly)]),
+    ['Operation', 'In the code only', 'In the document only']
+  );
+  table(
+    `Status codes that differ${aside}`,
+    result.statusMismatch.map((r) => [`\`${r.method.toUpperCase()} ${r.path}\``, codes(r.codeStatuses), codes(r.specResponses)]),
+    ['Operation', 'The code answers', 'The document describes']
+  );
+  table(
     'Accepted by the baseline, not a failure',
     [
       ...(result.accepted?.missingInSpec ?? []).map((r) => [`\`${r.method.toUpperCase()} ${r.path}\``, IN_CODE]),
@@ -135,7 +170,8 @@ export function markdownReport(result: DriftResult, { spec, source, root, app }:
     ['Entry']
   );
   if (ignored) lines.push(`Left out by the ignore patterns: ${ignored}.`, '');
-  if (!total && !result.paramMismatch.length && !accepted) lines.push('The document and the code agree.', '');
+  if (!total && !result.paramMismatch.length && !accepted && !details) lines.push('The document and the code agree.', '');
+  if (strict && details) lines.push(`${plural(details, 'difference')} fail${details === 1 ? 's' : ''} the run (\`--strict\`).`, '');
   return lines.join('\n');
 }
 
@@ -152,6 +188,8 @@ export function jsonReport(result: DriftResult, { spec, source, root, app }: Rep
       missingInSpec: result.missingInSpec.map((r) => ({ ...r, file: rel(r.file, root) })),
       missingInCode: result.missingInCode,
       paramMismatch: result.paramMismatch.map((r) => ({ ...r, file: rel(r.file, root) })),
+      queryMismatch: result.queryMismatch.map((r) => ({ ...r, file: rel(r.file, root) })),
+      statusMismatch: result.statusMismatch.map((r) => ({ ...r, file: rel(r.file, root) })),
       ...(result.ignored ? { ignored: result.ignored } : {}),
       ...(result.accepted
         ? {

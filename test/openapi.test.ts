@@ -35,7 +35,7 @@ test('basePath comes from the first server URL', () => {
 test('operations, pathParams, normalizePath and joinPath', () => {
   const ops = operations(loadSpec(fixture('nestjs', 'openapi.yaml')));
   assert.equal(ops.length, 9);
-  assert.deepEqual(ops[0], { method: 'get', path: '/users', params: [], operationId: 'listUsers' });
+  assert.deepEqual(ops[0], { method: 'get', path: '/users', params: [], query: [], responses: ['200'], operationId: 'listUsers' });
   assert.deepEqual(pathParams('/users/{id}/posts/{postId}'), ['id', 'postId']);
   assert.equal(normalizePath('/Users/{id}/'), '/users/{}');
   assert.equal(normalizePath('/'), '/');

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import YAML from 'yaml';
-import { METHODS, type OpenApiDocument, type Operation, type OperationObject, type Parameter } from './types.ts';
+import { METHODS, type OpenApiDocument, type Operation, type OperationObject, type Parameter, type PathItem } from './types.ts';
 
 /** Reads an OpenAPI document, YAML or JSON. Throws with the file name when it cannot be read. */
 export function loadSpec(file: string): OpenApiDocument {
@@ -111,12 +111,38 @@ export function operations(doc: OpenApiDocument): Operation[] {
     for (const m of METHODS) {
       const op = item[m];
       if (!op) continue;
-      const entry: Operation = { method: m, path: p, params: pathParams(p) };
+      const entry: Operation = {
+        method: m,
+        path: p,
+        params: pathParams(p),
+        query: queryParams(doc, item, op),
+        responses: op.responses && typeof op.responses === 'object' ? Object.keys(op.responses) : [],
+      };
       if (typeof op.operationId === 'string') entry.operationId = op.operationId;
       out.push(entry);
     }
   }
   return out;
+}
+
+/** The names of an operation's `in: query` parameters: the path's, then its own; references are followed. */
+function queryParams(doc: OpenApiDocument, item: PathItem, op: OperationObject): string[] {
+  const names: string[] = [];
+  const all = [...(Array.isArray(item.parameters) ? item.parameters : []), ...(Array.isArray(op.parameters) ? op.parameters : [])];
+  for (const given of all) {
+    const p = parameter(doc, given);
+    if (p?.in === 'query' && typeof p.name === 'string' && !names.includes(p.name)) names.push(p.name);
+  }
+  return names;
+}
+
+/** A parameter, or the one of `components.parameters` it refers to. */
+function parameter(doc: OpenApiDocument, p: Parameter | undefined, depth = 0): Parameter | undefined {
+  if (!p || typeof p !== 'object' || typeof p.$ref !== 'string') return p;
+  const m = /^#\/components\/parameters\/(.+)$/.exec(p.$ref);
+  if (!m || depth > 8) return undefined;
+  const name = (m[1] as string).replace(/~1/g, '/').replace(/~0/g, '~');
+  return parameter(doc, doc.components?.parameters?.[name], depth + 1);
 }
 
 /** The names of the templated parameters of a path, in order: `/users/{id}/posts/{postId}` -> ['id', 'postId']. */

@@ -69,6 +69,8 @@ export function applyIgnore(result: DriftResult, patterns: string[]): DriftResul
     missingInSpec,
     missingInCode,
     paramMismatch: kept(result.paramMismatch),
+    queryMismatch: kept(result.queryMismatch),
+    statusMismatch: kept(result.statusMismatch),
     ...(accepted ? { accepted } : {}),
     ...(result.resolved ? { resolved: result.resolved.filter((entry) => !named(parsed(entry))) } : {}),
     ignored: {

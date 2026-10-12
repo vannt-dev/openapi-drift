@@ -10,7 +10,7 @@ Giữ cho tài liệu OpenAPI không nói dối. `openapi-drift` đọc các rou
 
 - route code đang phục vụ mà tài liệu không mô tả,
 - operation tài liệu mô tả mà không route nào phục vụ,
-- và, ở mức ghi chú, tham số đường dẫn đặt tên khác nhau (`{id}` trong tài liệu, `:orderId` trong code).
+- và, ở mức ghi chú: tham số đường dẫn đặt tên khác nhau (`{id}` trong tài liệu, `:orderId` trong code), query parameter mà handler đọc nhưng tài liệu không mô tả (hoặc ngược lại), và mã trạng thái code trả về mà tài liệu không mô tả.
 
 Mọi thứ dựng trên tài liệu (test sinh tự động, SDK client, mock, người review) chỉ đúng khi tài liệu đúng. Chạy trong CI thì một pull request không thể đổi API mà không đổi tài liệu.
 
@@ -70,6 +70,7 @@ openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.js
 | `--ignore-file <file>` | Đọc pattern từ file, mỗi dòng một pattern; `#` mở đầu chú thích.                                                                                                                                                                                                                                          |
 | `--baseline <file>`    | Lệch đã biết và đã chấp nhận: vẫn được báo cáo nhưng không làm fail.                                                                                                                                                                                                                                      |
 | `--update-baseline`    | Ghi lệch của lần chạy này vào file `--baseline` rồi thoát với mã `0`.                                                                                                                                                                                                                                     |
+| `--strict`             | Query parameter và mã trạng thái khác nhau luôn được báo cáo; thêm cờ này thì chúng cũng làm lần chạy thất bại.                                                                                                                                                                                           |
 
 Mã thoát: `0` không lệch, `1` có lệch, `2` dùng sai hoặc tài liệu có lỗi (`lint` liệt kê trước).
 
@@ -116,6 +117,24 @@ Giá trị mà nguồn không ghi ra dạng chữ (`app.setGlobalPrefix(config.g
 
 Đường dẫn so sánh bỏ qua tên tham số và hoa thường, nên `/users/{id}` và `/Users/:userId` là một; tên khác nhau được báo ở mức ghi chú, không fail.
 
+### Ngoài đường dẫn
+
+Với một operation mà cả hai bên đều có, hai thứ nữa được so sánh, dựa trên những gì mã nguồn cho thấy về handler:
+
+```
+Query parameters that differ (1, not a failure):
+  GET     /users: in the code only: sort; in the document only: limit (src/users.controller.ts:3)
+
+Status codes that differ (1, not a failure):
+  POST    /users: the code answers 201; the document describes 200, 400 (src/users.controller.ts:6)
+```
+
+- **NestJS, query parameter**: tên trong `@Query('page')` ở chữ ký của handler. Khi mọi `@Query` đều có tên thì danh sách là đầy đủ, nên tham số tài liệu mô tả mà handler không đọc cũng được báo. `@Query() dto` và `@Req()` không cho biết tên, nên không so sánh gì.
+- **NestJS, mã trạng thái**: `@HttpCode(204)` hoặc `@HttpCode(HttpStatus.NO_CONTENT)`, nếu không thì là mã NestJS tự trả: 201 cho `@Post`, 200 cho phần còn lại. Handler tự cầm response (`@Res()` không có `passthrough`) hoặc redirect thì bỏ qua.
+- **Express**: những gì nhìn thấy được ở handler viết tại chỗ, `req.query.page`, `req.query['page']`, `const { page } = req.query`, `res.status(201)`, `res.sendStatus(204)`. Đây chỉ là phần nhìn thấy được khi nó được viết ra dạng chữ: handler có thể đọc thêm qua hàm phụ, nên chỉ báo tham số và mã trạng thái mà tài liệu thiếu, không báo chiều ngược lại. Handler nằm ở nơi khác (`app.get('/x', listUsers)`) thì không cho biết gì.
+
+Một mã trạng thái được coi là đã mô tả khi tài liệu có nó theo số, theo khoảng (`2XX`) hoặc dưới `default`. Các khác biệt này là ghi chú: mã thoát vẫn là `0` trừ khi có `--strict`. Pattern bỏ qua loại chúng ra như các phần khác; baseline không chứa chúng. `openapi-drift routes` cho thấy những gì đọc được ở mỗi handler (`?page&sort -> 200`).
+
 ## GitHub Action
 
 ```yaml
@@ -137,6 +156,7 @@ jobs:
             /api/health
             GET /api/internal/**
           baseline: openapi-drift.json # tuỳ chọn
+          strict: 'true' # tuỳ chọn: khác biệt về query và mã trạng thái làm job thất bại
 ```
 
 Báo cáo Markdown vào job summary và file `openapi-drift.md` (input `report`); output `drifts` mang số lệch, để bước sau đăng thành bình luận trên pull request.
