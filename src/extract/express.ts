@@ -130,7 +130,7 @@ function parseFile(file: string): ParsedFile {
   return info;
 }
 
-function resolveImport(dir: string, spec: string): string | null {
+export function resolveImport(dir: string, spec: string): string | null {
   if (!spec.startsWith('.')) return null;
   const base = path.resolve(dir, spec);
   const candidates = [

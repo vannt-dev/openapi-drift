@@ -12,7 +12,7 @@ const HELP = `openapi-drift: keeps an OpenAPI document honest against the routes
 
 usage:
   openapi-drift check --spec <openapi.yaml> --source <dir> [options]
-  openapi-drift routes --source <dir> [--framework nestjs|express] [--prefix /api]
+  openapi-drift routes --source <dir> [--framework ${FRAMEWORKS.join('|')}] [--prefix /api]
   openapi-drift lint --spec <openapi.yaml>
 
 options:
@@ -177,10 +177,12 @@ function routes(opts: Options, io: Io): number {
     io.out(JSON.stringify(shown, null, 2) + '\n');
     return 0;
   }
-  io.out(`${source}: ${found.routes.length} routes (${found.framework})\n`);
+  // what a framework serves without its being written is in the JSON, not in this list
+  const written = found.routes.filter((r) => !r.implicit);
+  io.out(`${source}: ${written.length} routes (${found.framework})\n`);
   const read = readFromCode(found.app, process.cwd());
   if (read) io.out(`  read from the code: ${read}\n`);
-  for (const r of found.routes) {
+  for (const r of written) {
     // what was read of the handler: `?page&sort -> 200`
     const seen = [r.query?.names.length ? `?${r.query.names.join('&')}` : '', r.statuses?.length ? `-> ${r.statuses.join(', ')}` : ''];
     const more = seen.filter(Boolean).join(' ');

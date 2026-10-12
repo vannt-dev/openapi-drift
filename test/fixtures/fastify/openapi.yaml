@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: Shop API on Fastify
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: ok
+    head:
+      operationId: healthHead
+      responses:
+        '200':
+          description: ok
+  /ping:
+    head:
+      operationId: ping
+      responses:
+        '200':
+          description: ok
+  /api/users:
+    get:
+      operationId: listUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ok
+    post:
+      operationId: createUser
+      responses:
+        '201':
+          description: created
+  /api/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getUser
+      responses:
+        '200':
+          description: ok
+    patch:
+      operationId: updateUser
+      responses:
+        '200':
+          description: ok
+    delete:
+      operationId: deleteUser
+      responses:
+        '204':
+          description: removed
+  /api/users/{id}/avatar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getAvatar
+      responses:
+        '200':
+          description: ok
+  /api/orders:
+    get:
+      operationId: listOrders
+      responses:
+        '200':
+          description: ok
+  /api/orders/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: replaceOrder
+      responses:
+        '200':
+          description: ok
+  /api/orders/{orderId}/items:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listOrderItems
+      responses:
+        '200':
+          description: ok
+  /admin/stats:
+    get:
+      operationId: adminStats
+      responses:
+        '200':
+          description: ok
+  /api/v2/reports/daily:
+    get:
+      operationId: dailyReport
+      responses:
+        '200':
+          description: ok
+  /files/{wildcard}:
+    parameters:
+      - name: wildcard
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getFile
+      responses:
+        '200':
+          description: ok

@@ -62,8 +62,10 @@ export const HTTP_STATUS: Readonly<Record<string, number>> = {
  * The request and the response are the first two parameters of a function written there, whatever their names,
  * so that `db.query.users` is not taken for a query parameter. It is what was seen, not all there is: a handler
  * may read more through a helper, and may answer with a status it computes.
+ *
+ * `statusCalls` are the methods of the response that set the status with a number.
  */
-export function inlineHandlerDetails(text: string): HandlerDetails {
+export function inlineHandlerDetails(text: string, statusCalls: readonly string[] = ['status', 'sendStatus']): HandlerDetails {
   const requests = new Set<string>();
   const responses = new Set<string>();
   // `(req, res) =>`, `async (req: Request, res: Response, next): Promise<void> => {`, `function (req, res) {`
@@ -71,10 +73,15 @@ export function inlineHandlerDetails(text: string): HandlerDetails {
     requests.add(m[1] as string);
     responses.add(m[2] as string);
   }
+  // a handler that takes the request alone: `(request) =>`, `request =>`
+  for (const m of text.matchAll(/\(\s*([A-Za-z_$][\w$]*)\s*(?::[^,()]*)?\)\s*(?::[^={]*)?=>|(?<![\w$.])([A-Za-z_$][\w$]*)\s*=>/g)) {
+    requests.add((m[1] ?? m[2]) as string);
+  }
   if (!requests.size) return {};
   const either = (names: Set<string>): string => [...names].map((n) => n.replace(/\$/g, '\\$')).join('|');
   const req = `(?:${either(requests)})`;
-  const res = `(?:${either(responses)})`;
+  // no response by name: nothing can be seen of the status
+  const res = responses.size ? `(?:${either(responses)})` : '(?!)';
 
   const names: string[] = [];
   const add = (name: string): void => {
@@ -98,7 +105,7 @@ export function inlineHandlerDetails(text: string): HandlerDetails {
     } else add((m[2] ?? m[4]) as string);
   }
   const statuses: number[] = [];
-  for (const m of text.matchAll(new RegExp(`(?<![\\w$.])${res}\\s*\\.\\s*(?:status|sendStatus)\\s*\\(\\s*(\\d{3})\\s*\\)`, 'g'))) {
+  for (const m of text.matchAll(new RegExp(`(?<![\\w$.])${res}\\s*\\.\\s*(?:${statusCalls.join('|')})\\s*\\(\\s*(\\d{3})\\s*\\)`, 'g'))) {
     const status = Number(m[1]);
     if (!statuses.includes(status)) statuses.push(status);
   }
