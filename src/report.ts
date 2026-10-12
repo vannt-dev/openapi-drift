@@ -1,10 +1,31 @@
 import path from 'node:path';
-import type { DriftResult, ReportContext } from './types.ts';
+import { joinPath } from './openapi.ts';
+import type { AppSettings, DriftResult, ReportContext } from './types.ts';
 
 const rel = (file: string, root: string): string => path.relative(root, file).replace(/\\/g, '/');
 const where = (x: { file?: string; line?: number }, root: string): string => (x.file ? ` (${rel(x.file, root)}:${x.line})` : '');
 const verb = (m: string): string => m.toUpperCase().padEnd(7);
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * What was read from the code instead of being given, as one line: where the global prefix is set and how
+ * versions are put in the path. Empty when nothing was read. `code` wraps what is code (Markdown backticks).
+ */
+export function readFromCode(app: AppSettings | undefined, root: string, code: (s: string) => string = (s) => s): string {
+  const parts: string[] = [];
+  if (app?.prefix) {
+    const left = app.prefix.exclude.length ? `, ${plural(app.prefix.exclude.length, 'route')} left out of it` : '';
+    parts.push(`global prefix ${code(joinPath(app.prefix.value))} (${code(`${rel(app.prefix.file, root)}:${app.prefix.line}`)}${left})`);
+  }
+  if (app?.versioning) {
+    const v = app.versioning;
+    const defaults = v.defaults.map((d) => (d === '' ? 'none' : code(d))).join(' and ');
+    parts.push(
+      `versions in the path as ${code(`${v.prefix}<version>`)}${defaults ? `, ${defaults} by default` : ''} (${code(`${rel(v.file, root)}:${v.line}`)})`
+    );
+  }
+  return parts.join('; ');
+}
 
 const IN_CODE = 'in the code, not in the document';
 const IN_SPEC = 'in the document, not in the code';
@@ -19,12 +40,14 @@ function setAside(result: DriftResult): { accepted: number; ignored: number; res
 }
 
 /** The result as plain text for a terminal. */
-export function textReport(result: DriftResult, { spec, source, root }: ReportContext): string {
+export function textReport(result: DriftResult, { spec, source, root, app }: ReportContext): string {
   const lines: string[] = [];
   const total = result.missingInSpec.length + result.missingInCode.length;
   const { accepted, ignored, resolved } = setAside(result);
+  const read = readFromCode(app, root);
   lines.push(`${spec}: ${plural(result.counts.spec, 'operation')}${result.base ? ` under ${result.base}` : ''}`);
   lines.push(`${source}: ${plural(result.counts.code, 'route')}${result.prefix ? ` under ${result.prefix}` : ''}`);
+  if (read) lines.push(`  read from the code: ${read}`);
   if (result.missingInSpec.length) {
     lines.push('', `In the code, not in the document (${result.missingInSpec.length}):`);
     for (const r of result.missingInSpec) lines.push(`  ${verb(r.method)} ${r.path}${where(r, root)}${r.hint ? ` — ${r.hint}` : ''}`);
@@ -61,7 +84,7 @@ export function textReport(result: DriftResult, { spec, source, root }: ReportCo
 }
 
 /** The result as Markdown (a pull request comment, a job summary). */
-export function markdownReport(result: DriftResult, { spec, source, root }: ReportContext): string {
+export function markdownReport(result: DriftResult, { spec, source, root, app }: ReportContext): string {
   const lines: string[] = [];
   const total = result.missingInSpec.length + result.missingInCode.length;
   const { accepted, ignored, resolved } = setAside(result);
@@ -71,6 +94,8 @@ export function markdownReport(result: DriftResult, { spec, source, root }: Repo
       `\`${source}\`: ${plural(result.counts.code, 'route')}${result.prefix ? ` under \`${result.prefix}\`` : ''}`,
     ''
   );
+  const read = readFromCode(app, root, (s) => `\`${s}\``);
+  if (read) lines.push(`Read from the code: ${read}`, '');
   const table = (title: string, rows: string[][], cols: string[]): void => {
     if (!rows.length) return;
     lines.push(`### ${title} (${rows.length})`, '', `| ${cols.join(' | ')} |`, `| ${cols.map(() => '---').join(' | ')} |`);
@@ -115,13 +140,14 @@ export function markdownReport(result: DriftResult, { spec, source, root }: Repo
 }
 
 /** The result as JSON, file paths relative to `root`. */
-export function jsonReport(result: DriftResult, { spec, source, root }: ReportContext): string {
+export function jsonReport(result: DriftResult, { spec, source, root, app }: ReportContext): string {
   return JSON.stringify(
     {
       spec,
       source,
       base: result.base,
       prefix: result.prefix,
+      ...(app ? { app: appJson(app, root) } : {}),
       counts: result.counts,
       missingInSpec: result.missingInSpec.map((r) => ({ ...r, file: rel(r.file, root) })),
       missingInCode: result.missingInCode,
@@ -140,4 +166,13 @@ export function jsonReport(result: DriftResult, { spec, source, root }: ReportCo
     null,
     2
   );
+}
+
+/** What was read from the code, file paths relative to `root`. */
+export function appJson(app: AppSettings, root: string): AppSettings {
+  return {
+    ...(app.prefix ? { prefix: { ...app.prefix, file: rel(app.prefix.file, root) } } : {}),
+    ...(app.versioning ? { versioning: { ...app.versioning, file: rel(app.versioning.file, root) } } : {}),
+    notes: app.notes.map((n) => ({ ...n, file: rel(n.file, root) })),
+  };
 }

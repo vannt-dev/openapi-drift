@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Pets API
+  version: 2.0.0
+paths:
+  /api/v1/cats:
+    get:
+      operationId: listCats
+      responses:
+        '200':
+          description: ok
+    post:
+      operationId: createCat
+      responses:
+        '201':
+          description: created
+  /api/v2/cats:
+    post:
+      operationId: createCatV2
+      responses:
+        '201':
+          description: created
+  /api/v2/cats/{id}:
+    get:
+      operationId: getCat
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok
+  /api/v3/cats/{id}:
+    delete:
+      operationId: removeCat
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: removed
+  /api/cats/breeds:
+    get:
+      operationId: listBreeds
+      responses:
+        '200':
+          description: ok
+  /api/v2/dogs:
+    get:
+      operationId: listDogsV2
+      responses:
+        '200':
+          description: ok
+  /api/v3/dogs:
+    get:
+      operationId: listDogsV3
+      responses:
+        '200':
+          description: ok
+  /api/v4/dogs/legacy:
+    get:
+      operationId: legacyDogs
+      responses:
+        '200':
+          description: ok
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: ok
+  /v1/metrics:
+    get:
+      operationId: readMetrics
+      responses:
+        '200':
+          description: ok
+  /api/v1/metrics:
+    post:
+      operationId: pushMetrics
+      responses:
+        '200':
+          description: ok

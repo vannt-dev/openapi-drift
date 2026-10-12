@@ -18,7 +18,9 @@ inputs:
     required: false
     default: auto
   prefix:
-    description: A prefix the code adds to every route and the source does not show (NestJS setGlobalPrefix).
+    description: >-
+      A prefix the code adds to every route and the source does not show. Not needed for a NestJS global prefix
+      or URI versioning, which are read from the code; given, it replaces what the code says.
     required: false
     default: ''
   fail-on:

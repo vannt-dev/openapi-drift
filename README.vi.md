@@ -57,19 +57,19 @@ openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore '
 openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json   # chỉ fail khi có lệch mới
 ```
 
-| Tuỳ chọn               | Ý nghĩa                                                                                                                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--spec <file>`        | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                                                                                          |
-| `--source <dir>`       | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                          |
-| `--framework`          | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`.                                                                                 |
-| `--prefix <path>`      | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: NestJS `app.setGlobalPrefix('api')`, mount Express dựng động. Base path của tài liệu (`servers[0].url`) được tự đọc. |
-| `--format`             | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                   |
-| `--output <file>`      | Ghi thêm báo cáo ra file.                                                                                                                                                    |
-| `--fail-on`            | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo.                                         |
-| `--ignore <pattern>`   | Bỏ qua lệch trên một đường dẫn: `/health`, `'GET /internal/**'`. Dùng được nhiều lần.                                                                                        |
-| `--ignore-file <file>` | Đọc pattern từ file, mỗi dòng một pattern; `#` mở đầu chú thích.                                                                                                             |
-| `--baseline <file>`    | Lệch đã biết và đã chấp nhận: vẫn được báo cáo nhưng không làm fail.                                                                                                         |
-| `--update-baseline`    | Ghi lệch của lần chạy này vào file `--baseline` rồi thoát với mã `0`.                                                                                                        |
+| Tuỳ chọn               | Ý nghĩa                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--spec <file>`        | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                                                                                                                                                                                                                       |
+| `--source <dir>`       | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                                                                                                                                                       |
+| `--framework`          | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`.                                                                                                                                                                                                              |
+| `--prefix <path>`      | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: mount Express dựng động, tiền tố NestJS lấy từ cấu hình. Ngoài trường hợp đó NestJS không cần (xem bên dưới). Khi truyền, nó thay cho những gì đọc từ code; `/` nghĩa là không có tiền tố. Base path của tài liệu (`servers[0].url`) được tự đọc. |
+| `--format`             | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                                                                                                                                                |
+| `--output <file>`      | Ghi thêm báo cáo ra file.                                                                                                                                                                                                                                                                                 |
+| `--fail-on`            | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo.                                                                                                                                                                      |
+| `--ignore <pattern>`   | Bỏ qua lệch trên một đường dẫn: `/health`, `'GET /internal/**'`. Dùng được nhiều lần.                                                                                                                                                                                                                     |
+| `--ignore-file <file>` | Đọc pattern từ file, mỗi dòng một pattern; `#` mở đầu chú thích.                                                                                                                                                                                                                                          |
+| `--baseline <file>`    | Lệch đã biết và đã chấp nhận: vẫn được báo cáo nhưng không làm fail.                                                                                                                                                                                                                                      |
+| `--update-baseline`    | Ghi lệch của lần chạy này vào file `--baseline` rồi thoát với mã `0`.                                                                                                                                                                                                                                     |
 
 Mã thoát: `0` không lệch, `1` có lệch, `2` dùng sai hoặc tài liệu có lỗi (`lint` liệt kê trước).
 
@@ -96,7 +96,21 @@ Các lần chạy sau với `--baseline openapi-drift.json` liệt kê phần l�
 
 ### Đọc được gì
 
-**NestJS**: `@Controller('users')`, `@Controller({ path: 'users' })`, `@Controller(['a', 'b'])`, cùng `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Head`, `@Options`, `@All` và tham số đường dẫn, trong file `.ts` và `.js`. `:id` thành `{id}`. Global prefix và URI versioning không đọc từ code: truyền `--prefix`.
+**NestJS**: `@Controller('users')`, `@Controller({ path: 'users' })`, `@Controller(['a', 'b'])`, cùng `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Head`, `@Options`, `@All` và tham số đường dẫn, trong file `.ts` và `.js`. `:id` thành `{id}`.
+
+Những gì ứng dụng NestJS đặt cho mọi route cũng được đọc từ code, và báo cáo ghi rõ đọc ở đâu:
+
+- global prefix, `app.setGlobalPrefix('api')`, kể cả khi lấy từ hằng trong cùng file (`const globalPrefix = 'api'`), cùng các route nó bỏ qua (`{ exclude: ['health', { path: 'metrics', method: RequestMethod.GET }] }`);
+- URI versioning, `app.enableVersioning({ type: VersioningType.URI })` với `prefix` và `defaultVersion`, cùng phiên bản của `@Controller({ version: '1' })` và `@Version('2')`, gồm cả danh sách và `VERSION_NEUTRAL`. Phiên bản đặt trong header hay media type không nằm trong đường dẫn nên không đổi gì.
+
+```
+$ openapi-drift check --spec openapi.yaml --source src
+openapi.yaml: 12 operations
+src: 12 routes under /api
+  read from the code: global prefix /api (src/main.ts:9, 2 routes left out of it); versions in the path as v<version>, 1 by default (src/main.ts:12)
+```
+
+Giá trị mà nguồn không ghi ra dạng chữ (`app.setGlobalPrefix(config.get(...))`) thì không đoán: một dòng trên stderr chỉ ra chỗ đó, và `--prefix` cho biết giá trị. Tương tự khi một cây nguồn chứa nhiều ứng dụng với thiết lập khác nhau. Khi đã truyền `--prefix` thì không đọc gì từ code nữa, nên dòng lệnh viết cho bản trước vẫn giữ nguyên nghĩa. Đường dẫn thêm bởi `RouterModule` chưa được đọc.
 
 **Express**: `app.get('/x', ...)` và các verb khác, `router.get(...)`, `app.route('/x').get(...).post(...)`, `app.all(...)`, với router mount bằng `app.use('/prefix', router)` trong cùng file hoặc import từ file khác (`import users from './users.js'`, `const users = require('./users')`). Route có đường dẫn không phải chuỗi literal thì bỏ qua; router không được mount giữ nguyên đường dẫn của nó. Bỏ qua comment.
 
@@ -117,7 +131,7 @@ jobs:
         with:
           spec: openapi.yaml
           source: src
-          prefix: /api # tuỳ chọn
+          prefix: /api # tuỳ chọn; global prefix của NestJS được đọc từ code
           fail-on: any # hoặc spec, code, none
           ignore: | # tuỳ chọn, mỗi dòng một pattern
             /api/health
@@ -133,9 +147,10 @@ Báo cáo Markdown vào job summary và file `openapi-drift.md` (input `report`)
 import { loadSpec, extractRoutes, compare, markdownReport } from 'openapi-drift';
 
 const doc = loadSpec('openapi.yaml');
-const { routes } = extractRoutes('src', { framework: 'auto', prefix: '/api' });
-const result = compare(doc, routes, { prefix: '/api' });
-console.log(markdownReport(result, { spec: 'openapi.yaml', source: 'src', root: process.cwd() }));
+// `prefix` là giá trị được truyền, hoặc giá trị đọc từ ứng dụng NestJS; `app` cho biết đọc ở đâu
+const { routes, prefix, app } = extractRoutes('src', { framework: 'auto' });
+const result = compare(doc, routes, { prefix });
+console.log(markdownReport(result, { spec: 'openapi.yaml', source: 'src', root: process.cwd(), app }));
 ```
 
 Có kèm khai báo kiểu.

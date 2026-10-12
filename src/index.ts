@@ -1,5 +1,5 @@
 export { loadSpec, lintOpenApi, operations, basePath, normalizePath, pathParams, joinPath } from './openapi.ts';
-export { extractNestRoutes } from './extract/nestjs.ts';
+export { extractNestRoutes, readNestApp } from './extract/nestjs.ts';
 export { extractExpressRoutes } from './extract/express.ts';
 export { detectFramework, extractRoutes, type ExtractResult } from './extract/index.ts';
 export { compare, hasDrift } from './compare.ts';
