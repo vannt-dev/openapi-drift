@@ -25,6 +25,18 @@ inputs:
     description: 'any: fail on drift in either direction; spec: only routes the document lacks; code: only operations the code lacks; none: never fail.'
     required: false
     default: any
+  ignore:
+    description: "Drift to leave out, one pattern a line: /health, 'GET /internal/**' (* is one segment, ** any number)."
+    required: false
+    default: ''
+  ignore-file:
+    description: A file of ignore patterns, one a line, # starts a comment.
+    required: false
+    default: ''
+  baseline:
+    description: A baseline file (written by `openapi-drift check --baseline <file> --update-baseline`); the drift it lists is reported and does not fail the job.
+    required: false
+    default: ''
   report:
     description: Where to write the Markdown report; it is also added to the job summary.
     required: false
@@ -56,11 +68,20 @@ runs:
         FRAMEWORK: ${{ inputs.framework }}
         PREFIX: ${{ inputs.prefix }}
         FAIL_ON: ${{ inputs.fail-on }}
+        IGNORE: ${{ inputs.ignore }}
+        IGNORE_FILE: ${{ inputs.ignore-file }}
+        BASELINE: ${{ inputs.baseline }}
         REPORT: ${{ inputs.report }}
       run: |
+        more=()
+        while IFS= read -r pattern; do
+          if [ -n "${pattern//[[:space:]]/}" ]; then more+=(--ignore "$pattern"); fi
+        done <<< "$IGNORE"
+        if [ -n "$IGNORE_FILE" ]; then more+=(--ignore-file "$IGNORE_FILE"); fi
+        if [ -n "$BASELINE" ]; then more+=(--baseline "$BASELINE"); fi
         set +e
         node "$GITHUB_ACTION_PATH/bin/openapi-drift.js" check --spec "$SPEC" --source "$SOURCE" --framework "$FRAMEWORK" \
-          --prefix "$PREFIX" --fail-on "$FAIL_ON" --format markdown --output "$REPORT"
+          --prefix "$PREFIX" --fail-on "$FAIL_ON" --format markdown --output "$REPORT" "${more[@]}"
         status=$?
         set -e
         if [ -f "$REPORT" ]; then

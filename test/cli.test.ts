@@ -68,3 +68,70 @@ test('lint, routes, --version, --help and usage errors', () => {
   assert.match(cli(['frobnicate']).stderr, /unknown command 'frobnicate'/);
   assert.match(cli(['--bogus']).stderr, /unknown option --bogus/);
 });
+
+test('check: --ignore and --ignore-file leave drift out, and say how much', () => {
+  const cwd = fixture('nestjs');
+  const base = ['check', '--spec', 'openapi.yaml', '--source', 'src', '--prefix', '/api'];
+  const r = cli([...base, '--ignore', '/api/health', '--ignore=GET /api/legacy/**'], cwd);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /Left out by the ignore patterns: 3\.\n\n4 drifts\.\n$/);
+  assert.doesNotMatch(r.stdout, /\/api\/health|\/api\/legacy/);
+
+  const file = path.join(tempDir(), 'drift-ignore');
+  fs.writeFileSync(file, '# served, on purpose not documented\n/api/health   # probes\n\n/api/legacy/**\n/api/v0/*\n');
+  const all = cli([...base, '--ignore-file', file, '--ignore', '/api/users/**', '--ignore', 'POST /api/orders'], cwd);
+  assert.equal(all.status, 0, all.stdout + all.stderr);
+  assert.match(all.stdout, /Left out by the ignore patterns: 7\.\n\nNo drift: the document and the code agree\.\n$/);
+
+  assert.equal(cli([...base, '--ignore', 'health'], cwd).status, 2);
+  assert.match(cli([...base, '--ignore', 'health'], cwd).stderr, /ignore 'health': a path starts with \//);
+  assert.match(cli([...base, '--ignore-file', 'nope.txt'], cwd).stderr, /--ignore-file nope\.txt: no such file/);
+});
+
+test('check: --update-baseline records the drift, --baseline accepts it and fails only on what is new', () => {
+  const cwd = fixture('nestjs');
+  const base = ['check', '--spec', 'openapi.yaml', '--source', 'src', '--prefix', '/api'];
+  const file = path.join(tempDir(), 'baseline', 'openapi-drift.json');
+
+  const written = cli([...base, '--baseline', file, '--update-baseline'], cwd);
+  assert.equal(written.status, 0, written.stderr);
+  assert.match(written.stdout, /openapi-drift\.json: 7 drifts recorded as the baseline\n$/);
+  const baseline = JSON.parse(fs.readFileSync(file, 'utf8')) as { version: number; missingInSpec: string[]; missingInCode: string[] };
+  assert.equal(baseline.version, 1);
+  assert.equal(baseline.missingInSpec.length, 5);
+  assert.deepEqual(baseline.missingInCode, ['POST /api/orders', 'GET /api/users/{id}/avatar']);
+
+  const accepted = cli([...base, '--baseline', file], cwd);
+  assert.equal(accepted.status, 0, accepted.stdout);
+  assert.match(accepted.stdout, /Accepted by the baseline \(7, not a failure\):/);
+  assert.match(accepted.stdout, /\nNo new drift: 7 accepted by the baseline\.\n$/);
+
+  // one drift nobody accepted, one entry that drifts no more
+  baseline.missingInCode = ['POST /api/orders', 'GET /api/gone'];
+  fs.writeFileSync(file, JSON.stringify(baseline));
+  const fresh = cli([...base, '--baseline', file, '--format', 'json'], cwd);
+  assert.equal(fresh.status, 1);
+  const report = JSON.parse(fresh.stdout) as {
+    missingInCode: { path: string }[];
+    resolved: string[];
+    accepted: { missingInSpec: unknown[] };
+  };
+  assert.deepEqual(
+    report.missingInCode.map((r) => r.path),
+    ['/api/users/{id}/avatar']
+  );
+  assert.deepEqual(report.resolved, ['GET /api/gone']);
+  assert.equal(report.accepted.missingInSpec.length, 5);
+
+  // the ignore patterns are not written into a baseline
+  const narrow = path.join(tempDir(), 'narrow.json');
+  cli([...base, '--baseline', narrow, '--update-baseline', '--ignore', '/api/health'], cwd);
+  assert.equal((JSON.parse(fs.readFileSync(narrow, 'utf8')) as { missingInSpec: string[] }).missingInSpec.length, 3);
+
+  assert.match(cli([...base, '--update-baseline'], cwd).stderr, /--update-baseline needs --baseline <file>/);
+  assert.match(cli([...base, '--baseline', 'nope.json'], cwd).stderr, /--baseline nope\.json: no such file; --update-baseline writes it/);
+  fs.writeFileSync(file, '{"version": 2}');
+  const bad = cli([...base, '--baseline', file], cwd);
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /expected \{"version": 1, "missingInSpec": \[\.\.\.\], "missingInCode": \[\.\.\.\]\}/);
+});

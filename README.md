@@ -53,19 +53,46 @@ openapi-drift check --spec openapi.yaml --source src            # exit 1 on drif
 openapi-drift check --spec openapi.yaml --source src --prefix /api --fail-on spec --format markdown --output drift.md
 openapi-drift routes --source src                                # just list what the code declares
 openapi-drift lint --spec openapi.yaml                           # problems of the document itself
+openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore 'GET /internal/**'
+openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json   # fail on new drift only
 ```
 
-| Option            | Meaning                                                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--spec <file>`   | The OpenAPI 3 document, YAML or JSON.                                                                                                                                                                           |
-| `--source <dir>`  | The backend source tree (default `.`). `node_modules`, `dist`, `build`, tests and `.d.ts` files are skipped.                                                                                                    |
-| `--framework`     | `nestjs`, `express` or `auto` (default): NestJS when a `.ts` file declares `@Controller`.                                                                                                                       |
-| `--prefix <path>` | A prefix the code adds to every route and the source does not show: NestJS `app.setGlobalPrefix('api')`, an Express mount built dynamically. The document's own base path (`servers[0].url`) is read by itself. |
-| `--format`        | `text` (default), `markdown` or `json`.                                                                                                                                                                         |
-| `--output <file>` | Also write the report to a file.                                                                                                                                                                                |
-| `--fail-on`       | `any` (default): drift in either direction fails; `spec`: only routes the document lacks; `code`: only operations the code lacks; `none`: report only.                                                          |
+| Option                 | Meaning                                                                                                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--spec <file>`        | The OpenAPI 3 document, YAML or JSON.                                                                                                                                                                           |
+| `--source <dir>`       | The backend source tree (default `.`). `node_modules`, `dist`, `build`, tests and `.d.ts` files are skipped.                                                                                                    |
+| `--framework`          | `nestjs`, `express` or `auto` (default): NestJS when a `.ts` file declares `@Controller`.                                                                                                                       |
+| `--prefix <path>`      | A prefix the code adds to every route and the source does not show: NestJS `app.setGlobalPrefix('api')`, an Express mount built dynamically. The document's own base path (`servers[0].url`) is read by itself. |
+| `--format`             | `text` (default), `markdown` or `json`.                                                                                                                                                                         |
+| `--output <file>`      | Also write the report to a file.                                                                                                                                                                                |
+| `--fail-on`            | `any` (default): drift in either direction fails; `spec`: only routes the document lacks; `code`: only operations the code lacks; `none`: report only.                                                          |
+| `--ignore <pattern>`   | Leave out the drift on a path: `/health`, `'GET /internal/**'`. May be given more than once.                                                                                                                    |
+| `--ignore-file <file>` | Ignore patterns from a file, one a line; `#` starts a comment.                                                                                                                                                  |
+| `--baseline <file>`    | Drift that is known and accepted: it is reported and does not fail the run.                                                                                                                                     |
+| `--update-baseline`    | Write the drift of this run to the `--baseline` file and exit `0`.                                                                                                                                              |
 
 Exit codes: `0` no drift, `1` drift, `2` bad usage or a document with problems (`lint` lists them first).
+
+### Routes left out on purpose, and drift you already have
+
+Two things keep a first run in CI from being all red.
+
+**Ignore patterns** are for what is not meant to be in the document: health probes, metrics, internal routes. A pattern is a path, optionally after a method; `*` stands for one segment (or a part of one), `**` for any number of segments. It is matched against the path as the report prints it, prefix included, with parameter names and case ignored, and it leaves out drift in both directions.
+
+```
+# .openapi-drift-ignore, passed with --ignore-file
+/api/health            # every method
+GET /api/internal/**   # GET only, at any depth
+/api/v*/ping
+```
+
+**A baseline** is for drift that exists today and will be fixed later. Record it once and commit the file:
+
+```bash
+openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json --update-baseline
+```
+
+Later runs with `--baseline openapi-drift.json` list that drift under "Accepted by the baseline" and fail only on drift that is not in the file. When an entry no longer drifts, the report names it under "No longer drifting", so the file can lose it (run `--update-baseline` again). Ignore patterns are applied before a baseline is written, so the file holds only drift that is meant to be fixed.
 
 ### What is read
 
@@ -92,6 +119,10 @@ jobs:
           source: src
           prefix: /api # optional
           fail-on: any # or spec, code, none
+          ignore: | # optional, one pattern a line
+            /api/health
+            GET /api/internal/**
+          baseline: openapi-drift.json # optional
 ```
 
 The Markdown report goes to the job summary and to `openapi-drift.md` (the `report` input), and the `drifts` output carries the count, so a later step can post it as a pull request comment.

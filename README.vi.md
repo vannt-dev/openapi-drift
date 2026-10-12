@@ -53,19 +53,46 @@ openapi-drift check --spec openapi.yaml --source src            # exit 1 khi có
 openapi-drift check --spec openapi.yaml --source src --prefix /api --fail-on spec --format markdown --output drift.md
 openapi-drift routes --source src                                # chỉ liệt kê route code khai báo
 openapi-drift lint --spec openapi.yaml                           # lỗi của chính tài liệu
+openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore 'GET /internal/**'
+openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json   # chỉ fail khi có lệch mới
 ```
 
-| Tuỳ chọn          | Ý nghĩa                                                                                                                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--spec <file>`   | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                                                                                          |
-| `--source <dir>`  | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                          |
-| `--framework`     | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`.                                                                                 |
-| `--prefix <path>` | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: NestJS `app.setGlobalPrefix('api')`, mount Express dựng động. Base path của tài liệu (`servers[0].url`) được tự đọc. |
-| `--format`        | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                   |
-| `--output <file>` | Ghi thêm báo cáo ra file.                                                                                                                                                    |
-| `--fail-on`       | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo.                                         |
+| Tuỳ chọn               | Ý nghĩa                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--spec <file>`        | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                                                                                          |
+| `--source <dir>`       | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                          |
+| `--framework`          | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`.                                                                                 |
+| `--prefix <path>`      | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: NestJS `app.setGlobalPrefix('api')`, mount Express dựng động. Base path của tài liệu (`servers[0].url`) được tự đọc. |
+| `--format`             | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                   |
+| `--output <file>`      | Ghi thêm báo cáo ra file.                                                                                                                                                    |
+| `--fail-on`            | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo.                                         |
+| `--ignore <pattern>`   | Bỏ qua lệch trên một đường dẫn: `/health`, `'GET /internal/**'`. Dùng được nhiều lần.                                                                                        |
+| `--ignore-file <file>` | Đọc pattern từ file, mỗi dòng một pattern; `#` mở đầu chú thích.                                                                                                             |
+| `--baseline <file>`    | Lệch đã biết và đã chấp nhận: vẫn được báo cáo nhưng không làm fail.                                                                                                         |
+| `--update-baseline`    | Ghi lệch của lần chạy này vào file `--baseline` rồi thoát với mã `0`.                                                                                                        |
 
 Mã thoát: `0` không lệch, `1` có lệch, `2` dùng sai hoặc tài liệu có lỗi (`lint` liệt kê trước).
+
+### Route cố ý không ghi vào tài liệu, và lệch đang có sẵn
+
+Hai cách để lần chạy đầu trong CI không đỏ toàn bộ.
+
+**Pattern bỏ qua** dành cho thứ vốn không định đưa vào tài liệu: health probe, metrics, route nội bộ. Một pattern là một đường dẫn, có thể đứng sau một method; `*` thay cho một đoạn (hoặc một phần của đoạn), `**` thay cho bao nhiêu đoạn cũng được. Pattern được so với đường dẫn đúng như báo cáo in ra, gồm cả tiền tố, bỏ qua tên tham số và hoa thường, và bỏ lệch ở cả hai chiều.
+
+```
+# .openapi-drift-ignore, truyền bằng --ignore-file
+/api/health            # mọi method
+GET /api/internal/**   # chỉ GET, sâu bao nhiêu cũng được
+/api/v*/ping
+```
+
+**Baseline** dành cho lệch đang tồn tại và sẽ sửa sau. Ghi lại một lần rồi commit file:
+
+```bash
+openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json --update-baseline
+```
+
+Các lần chạy sau với `--baseline openapi-drift.json` liệt kê phần lệch đó dưới mục "Accepted by the baseline" và chỉ fail khi có lệch không nằm trong file. Khi một mục không còn lệch, báo cáo nêu tên nó dưới mục "No longer drifting" để bạn bỏ khỏi file (chạy lại `--update-baseline`). Pattern bỏ qua được áp dụng trước khi ghi baseline, nên file chỉ chứa phần lệch cần sửa.
 
 ### Đọc được gì
 
@@ -92,6 +119,10 @@ jobs:
           source: src
           prefix: /api # tuỳ chọn
           fail-on: any # hoặc spec, code, none
+          ignore: | # tuỳ chọn, mỗi dòng một pattern
+            /api/health
+            GET /api/internal/**
+          baseline: openapi-drift.json # tuỳ chọn
 ```
 
 Báo cáo Markdown vào job summary và file `openapi-drift.md` (input `report`); output `drifts` mang số lệch, để bước sau đăng thành bình luận trên pull request.
