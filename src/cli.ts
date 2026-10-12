@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadSpec, lintOpenApi } from './openapi.ts';
 import { extractRoutes } from './extract/index.ts';
 import { compare, hasDrift } from './compare.ts';
+import { applyBaseline, applyIgnore, baselineOf, loadBaseline, readIgnoreFile } from './filter.ts';
 import { textReport, markdownReport, jsonReport } from './report.ts';
 import { FAIL_ON, FORMATS, FRAMEWORKS, type FailOn, type Format, type Framework, type OpenApiDocument } from './types.ts';
 
@@ -25,15 +26,23 @@ options:
   --output <file>        write the report there as well as to stdout
   --fail-on <what>       any (default): exit 1 on drift in either direction; spec: only routes the
                          document lacks; code: only operations the code lacks; none: always exit 0
+  --ignore <pattern>     leave out the drift on a path: /health, 'GET /internal/**' (* is one segment,
+                         ** any number); may be given more than once
+  --ignore-file <file>   ignore patterns from a file, one a line, # starts a comment
+  --baseline <file>      drift that is known and accepted: it is reported and does not fail the run
+  --update-baseline      write the drift of this run to the --baseline file and exit 0
   --version, --help
 
 exit codes: 0 no drift (or --fail-on none), 1 drift, 2 bad usage or an unreadable document`;
 
-const VALUE_FLAGS = ['spec', 'source', 'framework', 'prefix', 'format', 'output', 'fail-on'] as const;
+const VALUE_FLAGS = ['spec', 'source', 'framework', 'prefix', 'format', 'output', 'fail-on', 'ignore-file', 'baseline'] as const;
 type ValueFlag = (typeof VALUE_FLAGS)[number];
 
 export interface Options extends Partial<Record<ValueFlag, string>> {
   _: string[];
+  /** Every `--ignore`, in the order given. */
+  ignore?: string[];
+  'update-baseline'?: boolean;
   help?: boolean;
   version?: boolean;
 }
@@ -49,7 +58,13 @@ export function parseArgs(argv: string[]): Options {
   const opts: Options = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] as string;
-    if (a.startsWith('--') && isValueFlag(a.slice(2))) {
+    if (a === '--ignore' || a.startsWith('--ignore=')) {
+      // the one option that adds up; a pattern may hold a space ('GET /health'), so it is taken whole
+      const v = a === '--ignore' ? argv[++i] : a.slice('--ignore='.length);
+      if (v === undefined || v.startsWith('--')) throw new Error('--ignore needs a value');
+      (opts.ignore ??= []).push(v);
+    } else if (a === '--update-baseline') opts['update-baseline'] = true;
+    else if (a.startsWith('--') && isValueFlag(a.slice(2))) {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) throw new Error(`${a} needs a value`);
       opts[a.slice(2) as ValueFlag] = v;
@@ -169,7 +184,19 @@ function check(opts: Options, io: Io): number {
       `openapi-drift: no routes found in ${source} (${found.framework}); every operation of the document will be reported as missing\n`
     );
   }
-  const result = compare(doc, found.routes, { prefix });
+  const ignore = [...(opts['ignore-file'] ? readIgnoreFile(opts['ignore-file']) : []), ...(opts.ignore ?? [])];
+  const compared = compare(doc, found.routes, { prefix });
+  if (opts['update-baseline']) {
+    if (!opts.baseline) throw new Error('--update-baseline needs --baseline <file>');
+    // what is ignored is not drift to accept: the patterns say so on every run
+    const baseline = baselineOf(applyIgnore(compared, ignore));
+    fs.mkdirSync(path.dirname(path.resolve(opts.baseline)), { recursive: true });
+    fs.writeFileSync(opts.baseline, JSON.stringify(baseline, null, 2) + '\n');
+    const n = baseline.missingInSpec.length + baseline.missingInCode.length;
+    io.out(`${opts.baseline}: ${n} drift${n === 1 ? '' : 's'} recorded as the baseline\n`);
+    return 0;
+  }
+  const result = applyIgnore(opts.baseline ? applyBaseline(compared, loadBaseline(opts.baseline)) : compared, ignore);
   const ctx = { spec: file, source, root: process.cwd() };
   const report =
     format === 'json' ? jsonReport(result, ctx) + '\n' : format === 'markdown' ? markdownReport(result, ctx) : textReport(result, ctx);

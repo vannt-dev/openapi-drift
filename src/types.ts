@@ -55,6 +55,19 @@ export interface DriftResult {
   missingInSpec: MissingInSpec[];
   missingInCode: MissingInCode[];
   paramMismatch: ParamMismatch[];
+  /** How much drift the ignore patterns left out, when there were any. */
+  ignored?: { missingInSpec: number; missingInCode: number };
+  /** Drift a baseline accepts: reported, never a failure. */
+  accepted?: { missingInSpec: MissingInSpec[]; missingInCode: MissingInCode[] };
+  /** Entries of the baseline that drift no more. */
+  resolved?: string[];
+}
+
+/** Drift that is known and accepted, as `--update-baseline` writes it: `GET /api/health`, one entry a drift. */
+export interface Baseline {
+  version: 1;
+  missingInSpec: string[];
+  missingInCode: string[];
 }
 
 export type FailOn = 'any' | 'spec' | 'code' | 'none';
