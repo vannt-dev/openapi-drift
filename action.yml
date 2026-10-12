@@ -14,7 +14,7 @@ inputs:
     required: false
     default: .
   framework:
-    description: nestjs, express or auto.
+    description: nestjs, express, fastify, spring or auto.
     required: false
     default: auto
   prefix:

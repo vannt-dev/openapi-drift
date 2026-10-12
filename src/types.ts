@@ -37,8 +37,8 @@ export interface Operation {
   responses: string[];
 }
 
-export type Framework = 'nestjs' | 'express' | 'fastify';
-export const FRAMEWORKS: readonly Framework[] = ['nestjs', 'express', 'fastify'];
+export type Framework = 'nestjs' | 'express' | 'fastify' | 'spring';
+export const FRAMEWORKS: readonly Framework[] = ['nestjs', 'express', 'fastify', 'spring'];
 
 export interface ExtractOptions {
   /**

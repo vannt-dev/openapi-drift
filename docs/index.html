@@ -6,7 +6,7 @@
     <title>openapi-drift</title>
     <meta
       name="description"
-      content="Keeps an OpenAPI document honest: compares it with the routes in your NestJS or Express code and reports the drift, as a CLI and a GitHub Action."
+      content="Keeps an OpenAPI document honest: compares it with the routes in your NestJS, Express, Fastify or Spring code and reports the drift, as a CLI and a GitHub Action."
     />
     <link
       rel="icon"
@@ -252,8 +252,8 @@
       <header>
         <h1 data-i18n="hero.h1">Your OpenAPI document, checked against the code that serves it.</h1>
         <p class="lead" data-i18n="hero.lead">
-          openapi-drift reads the routes your NestJS or Express code actually declares, compares them with the document, and fails the build
-          when they disagree, in either direction. No AI, no network, no build of your project.
+          openapi-drift reads the routes your NestJS, Express, Fastify or Spring code actually declares, compares them with the document,
+          and fails the build when they disagree, in either direction. No AI, no network, no build of your project.
         </p>
         <div class="cta">
           <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
@@ -298,8 +298,8 @@ src: 12 routes under /api
           <div class="card">
             <h3 data-i18n="why.2.h">Read from the source</h3>
             <p data-i18n="why.2">
-              NestJS decorators and Express calls are read from the source text. Nothing is installed or started, so it runs in a second on
-              any CI runner.
+              NestJS decorators, Express and Fastify calls and Spring annotations are read from the source text. Nothing is installed or
+              started, so it runs in a second on any CI runner.
             </p>
           </div>
           <div class="card">
@@ -380,7 +380,7 @@ src: 12 routes under /api
           'nav.action': 'GitHub Action',
           'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với chính code đang phục vụ nó.',
           'hero.lead':
-            'openapi-drift đọc các route mà code NestJS hoặc Express của bạn thật sự khai báo, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không AI, không mạng, không cần build dự án.',
+            'openapi-drift đọc các route mà code NestJS, Express, Fastify hoặc Spring của bạn thật sự khai báo, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không AI, không mạng, không cần build dự án.',
           'cta.start': 'Bắt đầu',
           'cta.docs': 'Tài liệu',
           'why.h2': 'Vì sao',
@@ -390,7 +390,7 @@ src: 12 routes under /api
           'why.1': 'Route code đang phục vụ mà tài liệu không mô tả, và operation tài liệu hứa mà không route nào phục vụ.',
           'why.2.h': 'Đọc từ mã nguồn',
           'why.2':
-            'Decorator NestJS và lời gọi Express được đọc từ văn bản nguồn. Không cài, không khởi động gì, nên chạy trong một giây trên mọi runner CI.',
+            'Decorator NestJS, lời gọi Express và Fastify, annotation Spring được đọc từ văn bản nguồn. Không cài, không khởi động gì, nên chạy trong một giây trên mọi runner CI.',
           'why.3.h': 'Tên không quan trọng, route mới quan trọng',
           'why.3':
             '<code>/users/{id}</code> và <code>/Users/:userId</code> là một route; tên tham số khác nhau chỉ là ghi chú, không fail.',

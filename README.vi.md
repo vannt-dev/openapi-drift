@@ -6,7 +6,7 @@
 
 English: [README.md](README.md)
 
-Giữ cho tài liệu OpenAPI không nói dối. `openapi-drift` đọc các route mà code **NestJS** hoặc **Express** của bạn thật sự khai báo, so với tài liệu, và báo độ lệch theo cả hai chiều:
+Giữ cho tài liệu OpenAPI không nói dối. `openapi-drift` đọc các route mà code **NestJS**, **Express**, **Fastify** hoặc **Spring** của bạn thật sự khai báo, so với tài liệu, và báo độ lệch theo cả hai chiều:
 
 - route code đang phục vụ mà tài liệu không mô tả,
 - operation tài liệu mô tả mà không route nào phục vụ,
@@ -61,7 +61,7 @@ openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.js
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--spec <file>`        | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                                                                                                                                                                                                                       |
 | `--source <dir>`       | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                                                                                                                                                       |
-| `--framework`          | `nestjs`, `express` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`.                                                                                                                                                                                                              |
+| `--framework`          | `nestjs`, `express`, `fastify`, `spring` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`, Fastify hoặc Express khi có file nguồn import nó, Spring khi có file Java hoặc Kotlin chứa controller.                                                                                  |
 | `--prefix <path>`      | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: mount Express dựng động, tiền tố NestJS lấy từ cấu hình. Ngoài trường hợp đó NestJS không cần (xem bên dưới). Khi truyền, nó thay cho những gì đọc từ code; `/` nghĩa là không có tiền tố. Base path của tài liệu (`servers[0].url`) được tự đọc. |
 | `--format`             | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                                                                                                                                                |
 | `--output <file>`      | Ghi thêm báo cáo ra file.                                                                                                                                                                                                                                                                                 |
@@ -115,6 +115,10 @@ Giá trị mà nguồn không ghi ra dạng chữ (`app.setGlobalPrefix(config.g
 
 **Express**: `app.get('/x', ...)` và các verb khác, `router.get(...)`, `app.route('/x').get(...).post(...)`, `app.all(...)`, với router mount bằng `app.use('/prefix', router)` trong cùng file hoặc import từ file khác (`import users from './users.js'`, `const users = require('./users')`). Route có đường dẫn không phải chuỗi literal thì bỏ qua; router không được mount giữ nguyên đường dẫn của nó. Bỏ qua comment.
 
+**Fastify**: `fastify.get('/x', ...)` và các verb khác, cùng `fastify.route({ method, url })`, mỗi route nằm dưới tiền tố của các plugin chứa nó. Plugin là thứ được truyền cho `register`: một hàm viết ngay trong lời gọi, một hàm trong cùng file, hoặc một import (`register(usersRoutes, { prefix: '/users' })`, `register(require('./users'), ...)`, `register(import('./users.js'), ...)`). Plugin đăng ký bên trong plugin mang cả hai tiền tố, và plugin không ai đăng ký thì giữ nguyên đường dẫn của nó. Fastify tự trả lời `HEAD` ở mọi nơi có `GET`: tài liệu có mô tả các operation đó là đúng, không mô tả cũng đúng. Route do `@fastify/autoload` tạo từ tên thư mục chưa được đọc.
+
+**Spring** (Java và Kotlin): `@GetMapping("/x")`, `@PostMapping`, `@PutMapping`, `@PatchMapping`, `@DeleteMapping` và `@RequestMapping(path, method)` trên các method của `@RestController` hoặc `@Controller`, nằm dưới `@RequestMapping` của class; nhiều đường dẫn thì mỗi route xuất hiện một lần cho mỗi đường dẫn, và `{id:\\d+}` thành `{id}`. Context path được đọc từ `application.properties` hoặc `application.yml` (`server.servlet.context-path`) và báo cáo ghi rõ đọc ở đâu; thiết lập của profile và của test không tính. Mã nguồn test (`src/test`) không được đọc, và interface có cùng annotation (Feign client, interface API sinh tự động) không phải là controller. Đường dẫn để trong hằng thì không đoán: route đó bị bỏ qua và một dòng trên stderr chỉ ra chỗ đó.
+
 Đường dẫn so sánh bỏ qua tên tham số và hoa thường, nên `/users/{id}` và `/Users/:userId` là một; tên khác nhau được báo ở mức ghi chú, không fail.
 
 ### Ngoài đường dẫn
@@ -132,6 +136,9 @@ Status codes that differ (1, not a failure):
 - **NestJS, query parameter**: tên trong `@Query('page')` ở chữ ký của handler. Khi mọi `@Query` đều có tên thì danh sách là đầy đủ, nên tham số tài liệu mô tả mà handler không đọc cũng được báo. `@Query() dto` và `@Req()` không cho biết tên, nên không so sánh gì.
 - **NestJS, mã trạng thái**: `@HttpCode(204)` hoặc `@HttpCode(HttpStatus.NO_CONTENT)`, nếu không thì là mã NestJS tự trả: 201 cho `@Post`, 200 cho phần còn lại. Handler tự cầm response (`@Res()` không có `passthrough`) hoặc redirect thì bỏ qua.
 - **Express**: những gì nhìn thấy được ở handler viết tại chỗ, `req.query.page`, `req.query['page']`, `const { page } = req.query`, `res.status(201)`, `res.sendStatus(204)`. Đây chỉ là phần nhìn thấy được khi nó được viết ra dạng chữ: handler có thể đọc thêm qua hàm phụ, nên chỉ báo tham số và mã trạng thái mà tài liệu thiếu, không báo chiều ngược lại. Handler nằm ở nơi khác (`app.get('/x', listUsers)`) thì không cho biết gì.
+- **Fastify**: tương tự, với `request.query.page` và `reply.code(201)`.
+- **Spring, query parameter**: `@RequestParam`, theo `name`, `value` hoặc tên của tham số. Danh sách là đầy đủ khi mọi tham số của handler đều cho biết nó lấy từ đâu (`@PathVariable`, `@RequestBody`, ...); một object mà query được gán vào, một `Pageable` hay chính request thì không cho biết.
+- **Spring, mã trạng thái**: `@ResponseStatus(HttpStatus.CREATED)`, nếu không thì 200. Handler trả về `ResponseEntity` tự dựng mã của nó: những mã nhìn thấy trong thân hàm (`ResponseEntity.status(HttpStatus.CREATED)`, `.ok()`, `.notFound()`, `.noContent()`) được so sánh, và chỉ báo những gì tài liệu thiếu.
 
 Một mã trạng thái được coi là đã mô tả khi tài liệu có nó theo số, theo khoảng (`2XX`) hoặc dưới `default`. Các khác biệt này là ghi chú: mã thoát vẫn là `0` trừ khi có `--strict`. Pattern bỏ qua loại chúng ra như các phần khác; baseline không chứa chúng. `openapi-drift routes` cho thấy những gì đọc được ở mỗi handler (`?page&sort -> 200`).
 
