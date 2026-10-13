@@ -42,7 +42,7 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        '200':
           description: removed
   /api/cats/breeds:
     get:
@@ -84,5 +84,5 @@ paths:
     post:
       operationId: pushMetrics
       responses:
-        '200':
-          description: ok
+        '201':
+          description: created

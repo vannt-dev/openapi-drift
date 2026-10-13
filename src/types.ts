@@ -7,6 +7,17 @@ export interface Route {
   path: string;
   file: string;
   line: number;
+  /**
+   * The query parameters the handler reads by name, when the source shows them. `complete` says the list is
+   * all of them (a NestJS signature where every `@Query` has a name); otherwise it is only what was seen
+   * (an Express handler written in place).
+   */
+  query?: { names: string[]; complete: boolean };
+  /**
+   * The statuses the handler is seen to answer with: for NestJS the one of a successful answer (`@HttpCode`,
+   * or 201 for a POST and 200 for the rest), for Express the ones written as numbers in the handler.
+   */
+  statuses?: number[];
 }
 
 /** An operation of an OpenAPI document, path as written under `paths`. */
@@ -15,6 +26,10 @@ export interface Operation {
   path: string;
   params: string[];
   operationId?: string;
+  /** The names of its `in: query` parameters, the path's included. */
+  query: string[];
+  /** The keys of its `responses`: `200`, `2XX`, `default`. */
+  responses: string[];
 }
 
 export type Framework = 'nestjs' | 'express';
@@ -77,6 +92,29 @@ export interface ParamMismatch {
   line: number;
 }
 
+/** An operation both sides know, whose query parameters differ. */
+export interface QueryMismatch {
+  method: HttpMethod;
+  path: string;
+  /** Read by the code, not described by the document. */
+  codeOnly: string[];
+  /** Described by the document, not read by the handler; empty when the code's list need not be whole. */
+  specOnly: string[];
+  file: string;
+  line: number;
+}
+
+/** An operation both sides know, where the code answers with a status the document does not describe. */
+export interface StatusMismatch {
+  method: HttpMethod;
+  path: string;
+  codeStatuses: number[];
+  /** Everything the document describes for the operation. */
+  specResponses: string[];
+  file: string;
+  line: number;
+}
+
 export interface DriftResult {
   base: string;
   prefix: string;
@@ -84,6 +122,10 @@ export interface DriftResult {
   missingInSpec: MissingInSpec[];
   missingInCode: MissingInCode[];
   paramMismatch: ParamMismatch[];
+  /** Reported, and a failure only under `strict`. */
+  queryMismatch: QueryMismatch[];
+  /** Reported, and a failure only under `strict`. */
+  statusMismatch: StatusMismatch[];
   /** How much drift the ignore patterns left out, when there were any. */
   ignored?: { missingInSpec: number; missingInCode: number };
   /** Drift a baseline accepts: reported, never a failure. */
@@ -112,6 +154,8 @@ export interface ReportContext {
   root: string;
   /** What was read from the code instead of being given, for the report to say so. */
   app?: AppSettings;
+  /** Whether differences in query parameters and status codes fail the run; the report words them accordingly. */
+  strict?: boolean;
 }
 
 /** An OpenAPI document as parsed; only what this tool reads is typed. */
@@ -119,6 +163,7 @@ export interface OpenApiDocument {
   openapi?: unknown;
   servers?: { url?: unknown }[];
   paths?: Record<string, PathItem | undefined>;
+  components?: { parameters?: Record<string, Parameter | undefined> };
   [key: string]: unknown;
 }
 
@@ -145,4 +190,5 @@ export interface Parameter {
   name?: string;
   in?: string;
   required?: boolean;
+  $ref?: string;
 }

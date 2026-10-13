@@ -10,7 +10,7 @@ Keeps an OpenAPI document honest. `openapi-drift` reads the routes your **NestJS
 
 - routes the code serves that the document does not describe,
 - operations the document describes that no route serves,
-- and, as a note, path parameters named differently (`{id}` in the document, `:orderId` in the code).
+- and, as notes, path parameters named differently (`{id}` in the document, `:orderId` in the code), query parameters a handler reads that the document does not describe (or the other way round), and statuses the code answers with that the document does not describe.
 
 Everything built on the document (generated tests, client SDKs, mocks, reviewers) is only as good as the document. Run this in CI and a pull request can no longer change the API without changing the document.
 
@@ -70,6 +70,7 @@ openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.js
 | `--ignore-file <file>` | Ignore patterns from a file, one a line; `#` starts a comment.                                                                                                                                                                                                                                                                                  |
 | `--baseline <file>`    | Drift that is known and accepted: it is reported and does not fail the run.                                                                                                                                                                                                                                                                     |
 | `--update-baseline`    | Write the drift of this run to the `--baseline` file and exit `0`.                                                                                                                                                                                                                                                                              |
+| `--strict`             | Query parameters and status codes that differ are always reported; with this they fail the run as well.                                                                                                                                                                                                                                         |
 
 Exit codes: `0` no drift, `1` drift, `2` bad usage or a document with problems (`lint` lists them first).
 
@@ -116,6 +117,24 @@ A value the source does not show as text (`app.setGlobalPrefix(config.get(...))`
 
 Paths are compared with parameter names and case ignored, so `/users/{id}` and `/Users/:userId` are the same path; the different names are reported as a note, not a failure.
 
+### Beyond the path
+
+For an operation both sides know, two more things are compared, from what the source shows of its handler:
+
+```
+Query parameters that differ (1, not a failure):
+  GET     /users: in the code only: sort; in the document only: limit (src/users.controller.ts:3)
+
+Status codes that differ (1, not a failure):
+  POST    /users: the code answers 201; the document describes 200, 400 (src/users.controller.ts:6)
+```
+
+- **NestJS, query parameters**: the names of `@Query('page')` in the handler's signature. When every `@Query` has a name the list is whole, so a parameter the document describes and the handler does not read is reported too. `@Query() dto` and `@Req()` say nothing by name, and nothing is compared.
+- **NestJS, status**: `@HttpCode(204)` or `@HttpCode(HttpStatus.NO_CONTENT)`, otherwise what NestJS answers by itself: 201 to a `@Post`, 200 to the rest. A handler that takes the response (`@Res()` without `passthrough`) or redirects is left alone.
+- **Express**: what a handler written in place is seen to do, `req.query.page`, `req.query['page']`, `const { page } = req.query`, `res.status(201)`, `res.sendStatus(204)`. This is only what was seen where it was written as text: a handler may read more through a helper, so only parameters and statuses the document lacks are reported, never the other way round. A handler that lives elsewhere (`app.get('/x', listUsers)`) says nothing.
+
+A status is described when the document has it by number, by range (`2XX`) or under `default`. These differences are notes: the exit code stays `0` unless `--strict` is given. Ignore patterns leave them out like the rest; a baseline does not hold them. `openapi-drift routes` shows what was read of each handler (`?page&sort -> 200`).
+
 ## GitHub Action
 
 ```yaml
@@ -137,6 +156,7 @@ jobs:
             /api/health
             GET /api/internal/**
           baseline: openapi-drift.json # optional
+          strict: 'true' # optional: query and status differences fail the job
 ```
 
 The Markdown report goes to the job summary and to `openapi-drift.md` (the `report` input), and the `drifts` output carries the count, so a later step can post it as a pull request comment.

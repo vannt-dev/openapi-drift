@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { sourceFiles, readText, stripComments, lineOf, toTemplate, closingParen } from '../files.ts';
 import { joinPath } from '../openapi.ts';
+import { inlineHandlerDetails, type HandlerDetails } from './handler.ts';
 import type { ExtractOptions, HttpMethod, Route } from '../types.ts';
 
 const VERBS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'all'] as const;
@@ -14,6 +15,8 @@ interface RawRoute {
   verb: Verb;
   path: string;
   line: number;
+  /** What the handlers written in the call are seen to read and to answer with. */
+  details: HandlerDetails;
 }
 
 interface Mount {
@@ -63,7 +66,7 @@ export function extractExpressRoutes(dir: string, { prefix = '' }: ExtractOption
       const prefixes = [...new Set(local.length ? local : external.length && exportedRouter ? external : [''])];
       const methods: readonly HttpMethod[] = r.verb === 'all' ? ALL : [r.verb];
       for (const p of prefixes) {
-        for (const method of methods) out.push({ method, path: toTemplate(joinPath(prefix, p, r.path)), file, line: r.line });
+        for (const method of methods) out.push({ method, path: toTemplate(joinPath(prefix, p, r.path)), file, line: r.line, ...r.details });
       }
     }
   }
@@ -96,7 +99,10 @@ function parseFile(file: string): ParsedFile {
   // app.get('/x', ...), router.post('/y', ...)
   const verbRe = new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*(${VERB_RE})\\s*\\(\\s*(['"\`])([^'"\`]+)\\3`, 'g');
   for (const m of src.matchAll(verbRe)) {
-    info.routes.push({ receiver: m[1] as string, verb: m[2] as Verb, path: m[4] as string, line: lineOf(src, m.index) });
+    // the call from its opening parenthesis: the path, then the handlers
+    const open = src.indexOf('(', m.index + (m[1] as string).length);
+    const details = inlineHandlerDetails(src.slice(open + 1, closingParen(src, open)));
+    info.routes.push({ receiver: m[1] as string, verb: m[2] as Verb, path: m[4] as string, line: lineOf(src, m.index), details });
   }
 
   // app.route('/x').get(...).post(...)
@@ -109,8 +115,16 @@ function parseFile(file: string): ParsedFile {
     for (;;) {
       const link = src.slice(i).match(chainLink);
       if (!link) break;
-      info.routes.push({ receiver, verb: link[1] as Verb, path: routePath, line });
-      i = closingParen(src, i + link[0].length - 1) + 1;
+      const open = i + link[0].length - 1;
+      const close = closingParen(src, open);
+      info.routes.push({
+        receiver,
+        verb: link[1] as Verb,
+        path: routePath,
+        line,
+        details: inlineHandlerDetails(src.slice(open + 1, close)),
+      });
+      i = close + 1;
     }
   }
   return info;

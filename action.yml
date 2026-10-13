@@ -39,6 +39,10 @@ inputs:
     description: A baseline file (written by `openapi-drift check --baseline <file> --update-baseline`); the drift it lists is reported and does not fail the job.
     required: false
     default: ''
+  strict:
+    description: Set to 'true' for query parameters and status codes that differ to fail the job; they are reported either way.
+    required: false
+    default: 'false'
   report:
     description: Where to write the Markdown report; it is also added to the job summary.
     required: false
@@ -73,6 +77,7 @@ runs:
         IGNORE: ${{ inputs.ignore }}
         IGNORE_FILE: ${{ inputs.ignore-file }}
         BASELINE: ${{ inputs.baseline }}
+        STRICT: ${{ inputs.strict }}
         REPORT: ${{ inputs.report }}
       run: |
         more=()
@@ -81,6 +86,7 @@ runs:
         done <<< "$IGNORE"
         if [ -n "$IGNORE_FILE" ]; then more+=(--ignore-file "$IGNORE_FILE"); fi
         if [ -n "$BASELINE" ]; then more+=(--baseline "$BASELINE"); fi
+        if [ "$STRICT" = "true" ]; then more+=(--strict); fi
         set +e
         node "$GITHUB_ACTION_PATH/bin/openapi-drift.js" check --spec "$SPEC" --source "$SOURCE" --framework "$FRAMEWORK" \
           --prefix "$PREFIX" --fail-on "$FAIL_ON" --format markdown --output "$REPORT" "${more[@]}"
