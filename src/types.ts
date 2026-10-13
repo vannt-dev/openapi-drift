@@ -18,6 +18,11 @@ export interface Route {
    * or 201 for a POST and 200 for the rest), for Express the ones written as numbers in the handler.
    */
   statuses?: number[];
+  /**
+   * Served by the framework without being written (Fastify answers HEAD wherever there is a GET). Such a route
+   * matches an operation of the document that describes it, and is not drift when the document does not.
+   */
+  implicit?: boolean;
 }
 
 /** An operation of an OpenAPI document, path as written under `paths`. */
@@ -32,8 +37,8 @@ export interface Operation {
   responses: string[];
 }
 
-export type Framework = 'nestjs' | 'express';
-export const FRAMEWORKS: readonly Framework[] = ['nestjs', 'express'];
+export type Framework = 'nestjs' | 'express' | 'fastify' | 'spring';
+export const FRAMEWORKS: readonly Framework[] = ['nestjs', 'express', 'fastify', 'spring'];
 
 export interface ExtractOptions {
   /**

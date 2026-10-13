@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: Shop API on Spring
+  version: 1.0.0
+servers:
+  - url: https://shop.example.com/shop
+paths:
+  /api/users:
+    get:
+      operationId: listUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: size
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok
+    post:
+      operationId: createUser
+      responses:
+        '201':
+          description: created
+  /api/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getUser
+      responses:
+        '200':
+          description: ok
+    put:
+      operationId: replaceUser
+      responses:
+        '200':
+          description: ok
+    delete:
+      operationId: removeUser
+      responses:
+        '204':
+          description: removed
+        '404':
+          description: no such user
+  /api/users/{id}/avatar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getAvatar
+      responses:
+        '200':
+          description: ok
+  /api/users/search:
+    get:
+      operationId: searchUsers
+      responses:
+        '200':
+          description: ok
+    post:
+      operationId: searchUsersByBody
+      responses:
+        '200':
+          description: ok
+  /api/users/find:
+    get:
+      operationId: findUsers
+      responses:
+        '200':
+          description: ok
+    post:
+      operationId: findUsersByBody
+      responses:
+        '200':
+          description: ok
+  /api/orders:
+    get:
+      operationId: listOrders
+      responses:
+        '200':
+          description: ok
+  /api/orders/ping:
+    get:
+      operationId: ping
+      responses:
+        '200':
+          description: ok
+  /files/{wildcard}:
+    parameters:
+      - name: wildcard
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getFile
+      responses:
+        '200':
+          description: ok
+  /api/reports/daily:
+    get:
+      operationId: dailyReport
+      parameters:
+        - name: day
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: tz
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok

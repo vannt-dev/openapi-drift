@@ -34,12 +34,17 @@ export function compare(doc: OpenApiDocument, routes: Route[], { prefix = '' }: 
   const codeRoutes = routes.map((r) => ({ ...r, key: `${r.method} ${normalizePath(r.path)}` }));
 
   const specByKey = new Map(specOps.map((op) => [op.key, op]));
-  const codeByKey = new Map<string, (typeof codeRoutes)[number]>();
+  // What is written comes first, so that it is the one compared. What the framework serves by itself can only
+  // match an operation of the document; it is never drift, and it is not counted.
+  const written = codeRoutes.filter((r) => !r.implicit);
+  const writtenByKey = new Map<string, (typeof codeRoutes)[number]>();
+  for (const r of written) if (!writtenByKey.has(r.key)) writtenByKey.set(r.key, r);
+  const codeByKey = new Map(writtenByKey);
   for (const r of codeRoutes) if (!codeByKey.has(r.key)) codeByKey.set(r.key, r);
 
   const missingInSpec: MissingInSpec[] = [];
   const seen = new Set<string>();
-  for (const r of codeRoutes) {
+  for (const r of written) {
     if (specByKey.has(r.key) || seen.has(r.key)) continue;
     seen.add(r.key);
     missingInSpec.push({ method: r.method, path: r.path, file: r.file, line: r.line, hint: otherMethods(specByKey, r.key) });
@@ -48,7 +53,7 @@ export function compare(doc: OpenApiDocument, routes: Route[], { prefix = '' }: 
   const missingInCode: MissingInCode[] = [];
   for (const op of specOps) {
     if (codeByKey.has(op.key)) continue;
-    const entry: MissingInCode = { method: op.method, path: op.full, specPath: op.path, hint: otherMethods(codeByKey, op.key) };
+    const entry: MissingInCode = { method: op.method, path: op.full, specPath: op.path, hint: otherMethods(writtenByKey, op.key) };
     if (op.operationId !== undefined) entry.operationId = op.operationId;
     missingInCode.push(entry);
   }
@@ -96,7 +101,7 @@ export function compare(doc: OpenApiDocument, routes: Route[], { prefix = '' }: 
   return {
     base,
     prefix,
-    counts: { spec: specOps.length, code: codeByKey.size },
+    counts: { spec: specOps.length, code: writtenByKey.size },
     missingInSpec,
     missingInCode,
     paramMismatch,
