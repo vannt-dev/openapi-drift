@@ -320,7 +320,8 @@ src: 12 routes under /api
             <td data-i18n="how.nest">
               <code>@Controller('users')</code>, <code>@Controller({ path })</code>, <code>@Controller(['a', 'b'])</code> with
               <code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Patch</code>, <code>@Delete</code>, <code>@Head</code>,
-              <code>@Options</code>, <code>@All</code>. The global prefix is given with <code>--prefix</code>.
+              <code>@Options</code>, <code>@All</code>. The global prefix (<code>setGlobalPrefix</code>) and URI versions are read from the
+              code; <code>--prefix</code> is for a value the source does not show.
             </td>
           </tr>
           <tr>
@@ -395,7 +396,7 @@ src: 12 routes under /api
             '<code>/users/{id}</code> và <code>/Users/:userId</code> là một route; tên tham số khác nhau chỉ là ghi chú, không fail.',
           'how.h2': 'Đọc được gì',
           'how.nest':
-            "<code>@Controller('users')</code>, <code>@Controller({ path })</code>, <code>@Controller(['a', 'b'])</code> cùng <code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Patch</code>, <code>@Delete</code>, <code>@Head</code>, <code>@Options</code>, <code>@All</code>. Global prefix truyền qua <code>--prefix</code>.",
+            "<code>@Controller('users')</code>, <code>@Controller({ path })</code>, <code>@Controller(['a', 'b'])</code> cùng <code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Patch</code>, <code>@Delete</code>, <code>@Head</code>, <code>@Options</code>, <code>@All</code>. Global prefix (<code>setGlobalPrefix</code>) và phiên bản trong URI được đọc từ code; <code>--prefix</code> dành cho giá trị mà nguồn không ghi ra.",
           'how.express':
             "<code>app.get('/x', ...)</code>, <code>router.post(...)</code>, <code>app.route('/x').get().post()</code>, <code>app.all</code>, với router mount bằng <code>app.use('/prefix', router)</code> trong cùng file hoặc import từ file khác.",
           'how.doc.h': 'Tài liệu',

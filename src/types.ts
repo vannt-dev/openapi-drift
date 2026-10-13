@@ -21,8 +21,37 @@ export type Framework = 'nestjs' | 'express';
 export const FRAMEWORKS: readonly Framework[] = ['nestjs', 'express'];
 
 export interface ExtractOptions {
-  /** A prefix the code adds to every route and the source does not show (NestJS `setGlobalPrefix`). */
+  /**
+   * A prefix the code adds to every route and the source does not show. Given, it is used as it is and nothing
+   * is read from the code (`/` for no prefix at all). Left out or empty, a NestJS application's own settings
+   * are read from its source: `setGlobalPrefix` and URI versioning.
+   */
   prefix?: string;
+}
+
+/** A route `setGlobalPrefix(..., { exclude })` leaves out of the prefix; without a method, every method. */
+export interface ExcludedRoute {
+  path: string;
+  method?: HttpMethod;
+}
+
+/** A setting that is in the code and could not be read; the routes are as if it were not set. */
+export interface AppNote {
+  file: string;
+  line: number;
+  message: string;
+}
+
+/** What a NestJS application sets for all of its routes, as read from its source. */
+export interface AppSettings {
+  /** `app.setGlobalPrefix('api', { exclude: [...] })`. */
+  prefix?: { value: string; exclude: ExcludedRoute[]; file: string; line: number };
+  /**
+   * `app.enableVersioning({ type: VersioningType.URI })`: a version is a path segment, `prefix` in front of it
+   * (`v`). `defaults` are the versions of a route that declares none; `''` in it stands for `VERSION_NEUTRAL`.
+   */
+  versioning?: { prefix: string; defaults: string[]; file: string; line: number };
+  notes: AppNote[];
 }
 
 export interface MissingInSpec extends Route {
@@ -81,6 +110,8 @@ export interface ReportContext {
   source: string;
   /** Paths in the report are shown relative to this directory. */
   root: string;
+  /** What was read from the code instead of being given, for the report to say so. */
+  app?: AppSettings;
 }
 
 /** An OpenAPI document as parsed; only what this tool reads is typed. */

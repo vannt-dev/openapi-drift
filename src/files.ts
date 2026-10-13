@@ -107,3 +107,58 @@ export function closingParen(src: string, open: number): number {
   }
   return src.length;
 }
+
+/** The end of a balanced `(...)`, `[...]` or `{...}` whose opening bracket is at `open`; strings are skipped. */
+export function closingBracket(src: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    const c = src[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') {
+      depth--;
+      if (depth === 0) return i;
+    } else if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) {
+        if (src[j] === '\\') j++;
+        j++;
+      }
+      i = j;
+    }
+  }
+  return src.length;
+}
+
+/** An argument list or the inside of an array, cut at its top-level commas: `'a', { b: [1, 2] }` -> two parts. */
+export function splitTopLevel(text: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[' || c === '{' || c === "'" || c === '"' || c === '`') i = closingBracketOrQuote(text, i);
+    else if (c === ',') {
+      out.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(text.slice(start));
+  return out.map((s) => s.trim()).filter((s) => s !== '');
+}
+
+function closingBracketOrQuote(text: string, at: number): number {
+  const c = text[at];
+  if (c !== "'" && c !== '"' && c !== '`') return closingBracket(text, at);
+  let j = at + 1;
+  while (j < text.length && text[j] !== c) {
+    if (text[j] === '\\') j++;
+    j++;
+  }
+  return j;
+}
+
+/** The text of an expression that is one string literal and nothing else (`'api'`), otherwise undefined. */
+export function wholeLiteral(text: string): string | undefined {
+  const t = text.trim();
+  const found = stringLiterals(t);
+  return found.length === 1 && t.length === (found[0] as string).length + 2 ? found[0] : undefined;
+}

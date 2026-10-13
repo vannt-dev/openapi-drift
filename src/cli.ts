@@ -5,8 +5,8 @@ import { loadSpec, lintOpenApi } from './openapi.ts';
 import { extractRoutes } from './extract/index.ts';
 import { compare, hasDrift } from './compare.ts';
 import { applyBaseline, applyIgnore, baselineOf, loadBaseline, readIgnoreFile } from './filter.ts';
-import { textReport, markdownReport, jsonReport } from './report.ts';
-import { FAIL_ON, FORMATS, FRAMEWORKS, type FailOn, type Format, type Framework, type OpenApiDocument } from './types.ts';
+import { textReport, markdownReport, jsonReport, readFromCode, appJson } from './report.ts';
+import { FAIL_ON, FORMATS, FRAMEWORKS, type AppSettings, type FailOn, type Format, type Framework, type OpenApiDocument } from './types.ts';
 
 const HELP = `openapi-drift: keeps an OpenAPI document honest against the routes in the code
 
@@ -19,9 +19,11 @@ options:
   --spec <file>          the OpenAPI 3 document (YAML or JSON)
   --source <dir>         the source tree of the backend (default: .)
   --framework <name>     ${FRAMEWORKS.join(', ')} or auto (default: auto)
-  --prefix <path>        a prefix the code adds to every route and the source does not show (NestJS
-                         setGlobalPrefix, an Express mount built dynamically); the document's own base
-                         path (servers[0].url) is read by itself
+  --prefix <path>        a prefix the code adds to every route and the source does not show (an Express
+                         mount built dynamically, a NestJS prefix from the configuration). For NestJS it
+                         is not needed otherwise: setGlobalPrefix and URI versioning are read from the
+                         code. Given, it replaces what the code says (/ for no prefix at all). The
+                         document's own base path (servers[0].url) is read by itself
   --format <name>        ${FORMATS.join(', ')} (default: text)
   --output <file>        write the report there as well as to stdout
   --fail-on <what>       any (default): exit 1 on drift in either direction; spec: only routes the
@@ -137,6 +139,13 @@ function oneOf<T extends string>(name: string, value: string | undefined, allowe
   throw new Error(`--${name} ${value}: ${allowed.join(', ')}`);
 }
 
+/** Settings of the application that are in the code and could not be read, on stderr. */
+function say(app: AppSettings | undefined, io: Io): void {
+  for (const n of app?.notes ?? []) {
+    io.err(`openapi-drift: ${path.relative(process.cwd(), n.file).replace(/\\/g, '/')}:${n.line}: ${n.message}\n`);
+  }
+}
+
 function lint(opts: Options, io: Io): number {
   const { file, problems } = needSpec(opts);
   if (!problems.length) {
@@ -153,13 +162,20 @@ function routes(opts: Options, io: Io): number {
   const framework = oneOf<Framework | 'auto'>('framework', opts.framework, [...FRAMEWORKS, 'auto'], 'auto');
   const found = extractRoutes(source, { framework, prefix: opts.prefix ?? '' });
   const relFile = (f: string): string => path.relative(process.cwd(), f).replace(/\\/g, '/');
+  say(found.app, io);
   if (opts.format === 'json') {
-    io.out(
-      JSON.stringify({ framework: found.framework, routes: found.routes.map((r) => ({ ...r, file: relFile(r.file) })) }, null, 2) + '\n'
-    );
+    const shown = {
+      framework: found.framework,
+      prefix: found.prefix,
+      ...(found.app ? { app: appJson(found.app, process.cwd()) } : {}),
+      routes: found.routes.map((r) => ({ ...r, file: relFile(r.file) })),
+    };
+    io.out(JSON.stringify(shown, null, 2) + '\n');
     return 0;
   }
   io.out(`${source}: ${found.routes.length} routes (${found.framework})\n`);
+  const read = readFromCode(found.app, process.cwd());
+  if (read) io.out(`  read from the code: ${read}\n`);
   for (const r of found.routes) io.out(`  ${r.method.toUpperCase().padEnd(7)} ${r.path}  ${relFile(r.file)}:${r.line}\n`);
   return 0;
 }
@@ -176,9 +192,10 @@ function check(opts: Options, io: Io): number {
   const format = oneOf<Format>('format', opts.format, FORMATS, 'text');
   const failOn = oneOf<FailOn>('fail-on', opts['fail-on'], FAIL_ON, 'any');
   const framework = oneOf<Framework | 'auto'>('framework', opts.framework, [...FRAMEWORKS, 'auto'], 'auto');
-  const prefix = opts.prefix ?? '';
 
-  const found = extractRoutes(source, { framework, prefix });
+  const found = extractRoutes(source, { framework, prefix: opts.prefix ?? '' });
+  say(found.app, io);
+  const prefix = found.prefix;
   if (!found.routes.length) {
     io.err(
       `openapi-drift: no routes found in ${source} (${found.framework}); every operation of the document will be reported as missing\n`
@@ -197,7 +214,7 @@ function check(opts: Options, io: Io): number {
     return 0;
   }
   const result = applyIgnore(opts.baseline ? applyBaseline(compared, loadBaseline(opts.baseline)) : compared, ignore);
-  const ctx = { spec: file, source, root: process.cwd() };
+  const ctx = { spec: file, source, root: process.cwd(), ...(found.app ? { app: found.app } : {}) };
   const report =
     format === 'json' ? jsonReport(result, ctx) + '\n' : format === 'markdown' ? markdownReport(result, ctx) : textReport(result, ctx);
   io.out(report);
