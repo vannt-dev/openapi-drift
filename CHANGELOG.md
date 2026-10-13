@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.2.0](https://github.com/vannt-dev/openapi-drift/compare/v0.1.0...v0.2.0) (2026-10-13)
+
+
+### Features
+
+* compare query parameters and status codes, with --strict to fail on them ([#6](https://github.com/vannt-dev/openapi-drift/issues/6)) ([9947c63](https://github.com/vannt-dev/openapi-drift/commit/9947c634e4038f7060a801ecea835b835dad517c))
+* ignore patterns and a baseline of accepted drift ([#3](https://github.com/vannt-dev/openapi-drift/issues/3)) ([52088ba](https://github.com/vannt-dev/openapi-drift/commit/52088ba9a4412361cbd74da3c3240d916b0670ff))
+* read the routes of Fastify and Spring applications ([#7](https://github.com/vannt-dev/openapi-drift/issues/7)) ([6aa7078](https://github.com/vannt-dev/openapi-drift/commit/6aa70786aa6ab5e6bed73c3b28acc85cefdafc8c))
+
 ## 0.1.0 (2026-10-11)
 
 The first release: a CLI, a library and a GitHub Action that compare an
