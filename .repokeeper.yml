@@ -22,3 +22,9 @@ modules:
 owned:
   - .github/dependabot.yml
 stack_options: {}
+github:
+  ci:
+    skip_when_only:
+      - "*.md"
+      - "docs/**"
+      - LICENSE
