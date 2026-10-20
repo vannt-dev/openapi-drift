@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.3.0](https://github.com/vannt-dev/openapi-drift/compare/v0.2.0...v0.3.0) (2026-10-20)
+
+
+### Features
+
+* write SARIF and annotate drift on the pull request ([2ebe1bd](https://github.com/vannt-dev/openapi-drift/commit/2ebe1bdcfd012b13345eae8c3f9f3c888db518df))
+* write SARIF and annotate drift on the pull request ([48d4f90](https://github.com/vannt-dev/openapi-drift/commit/48d4f901c6ce411206cf4eee36cbc01f2132f57f))
+
 ## [0.2.0](https://github.com/vannt-dev/openapi-drift/compare/v0.1.0...v0.2.0) (2026-10-13)
 
 
