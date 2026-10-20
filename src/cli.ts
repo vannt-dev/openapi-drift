@@ -1,12 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadSpec, lintOpenApi } from './openapi.ts';
+import { loadSpec, lintOpenApi, operationLines } from './openapi.ts';
 import { extractRoutes } from './extract/index.ts';
 import { compare, hasDrift } from './compare.ts';
 import { applyBaseline, applyIgnore, baselineOf, loadBaseline, readIgnoreFile } from './filter.ts';
-import { textReport, markdownReport, jsonReport, readFromCode, appJson } from './report.ts';
-import { FAIL_ON, FORMATS, FRAMEWORKS, type AppSettings, type FailOn, type Format, type Framework, type OpenApiDocument } from './types.ts';
+import { textReport, markdownReport, jsonReport, sarifReport, githubReport, readFromCode, appJson } from './report.ts';
+import {
+  FAIL_ON,
+  FORMATS,
+  FRAMEWORKS,
+  type AppSettings,
+  type FailOn,
+  type Format,
+  type Framework,
+  type OpenApiDocument,
+  type ReportContext,
+} from './types.ts';
 
 const HELP = `openapi-drift: keeps an OpenAPI document honest against the routes in the code
 
@@ -24,7 +34,8 @@ options:
                          is not needed otherwise: setGlobalPrefix and URI versioning are read from the
                          code. Given, it replaces what the code says (/ for no prefix at all). The
                          document's own base path (servers[0].url) is read by itself
-  --format <name>        ${FORMATS.join(', ')} (default: text)
+  --format <name>        ${FORMATS.join(', ')} (default: text); sarif is a SARIF 2.1.0 log for
+                         code scanning, github is workflow commands that annotate the lines on GitHub
   --output <file>        write the report there as well as to stdout
   --fail-on <what>       any (default): exit 1 on drift in either direction; spec: only routes the
                          document lacks; code: only operations the code lacks; none: always exit 0
@@ -226,9 +237,18 @@ function check(opts: Options, io: Io): number {
   }
   const result = applyIgnore(opts.baseline ? applyBaseline(compared, loadBaseline(opts.baseline)) : compared, ignore);
   const strict = opts.strict === true;
-  const ctx = { spec: file, source, root: process.cwd(), strict, ...(found.app ? { app: found.app } : {}) };
-  const report =
-    format === 'json' ? jsonReport(result, ctx) + '\n' : format === 'markdown' ? markdownReport(result, ctx) : textReport(result, ctx);
+  const ctx: ReportContext = { spec: file, source, root: process.cwd(), strict, failOn, ...(found.app ? { app: found.app } : {}) };
+  if (format === 'sarif' || format === 'github') {
+    ctx.specLines = operationLines(fs.readFileSync(file, 'utf8'));
+    ctx.version = version();
+  }
+  const report = {
+    json: () => jsonReport(result, ctx) + '\n',
+    sarif: () => sarifReport(result, ctx) + '\n',
+    github: () => githubReport(result, ctx),
+    markdown: () => markdownReport(result, ctx),
+    text: () => textReport(result, ctx),
+  }[format]();
   io.out(report);
   if (opts.output) {
     fs.mkdirSync(path.dirname(path.resolve(opts.output)), { recursive: true });

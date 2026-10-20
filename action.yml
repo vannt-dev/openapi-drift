@@ -1,5 +1,5 @@
 name: OpenAPI drift
-description: Compares an OpenAPI document with the routes in your NestJS or Express code and fails the job on drift.
+description: Compares an OpenAPI document with the routes in your NestJS, Express, Fastify or Spring code and fails the job on drift.
 author: Van Nguyen
 branding:
   icon: git-compare
@@ -47,6 +47,18 @@ inputs:
     description: Where to write the Markdown report; it is also added to the job summary.
     required: false
     default: openapi-drift.md
+  annotations:
+    description: >-
+      Set to 'false' to leave out the annotations: each drift as an error, warning or notice on its line
+      (the route in the code, the operation in the document), shown on the pull request's changed files.
+    required: false
+    default: 'true'
+  sarif:
+    description: >-
+      Where to write a SARIF 2.1.0 log of the drift, for github/codeql-action/upload-sarif to show it under
+      code scanning. Empty (the default) writes none.
+    required: false
+    default: ''
 
 outputs:
   drifts:
@@ -55,6 +67,9 @@ outputs:
   report:
     description: The path of the Markdown report.
     value: ${{ inputs.report }}
+  sarif:
+    description: The path of the SARIF log, when the sarif input asks for one.
+    value: ${{ steps.check.outputs.sarif }}
 
 runs:
   using: composite
@@ -79,6 +94,8 @@ runs:
         BASELINE: ${{ inputs.baseline }}
         STRICT: ${{ inputs.strict }}
         REPORT: ${{ inputs.report }}
+        ANNOTATIONS: ${{ inputs.annotations }}
+        SARIF: ${{ inputs.sarif }}
       run: |
         more=()
         while IFS= read -r pattern; do
@@ -87,11 +104,20 @@ runs:
         if [ -n "$IGNORE_FILE" ]; then more+=(--ignore-file "$IGNORE_FILE"); fi
         if [ -n "$BASELINE" ]; then more+=(--baseline "$BASELINE"); fi
         if [ "$STRICT" = "true" ]; then more+=(--strict); fi
+        drift=(node "$GITHUB_ACTION_PATH/bin/openapi-drift.js" check --spec "$SPEC" --source "$SOURCE" --framework "$FRAMEWORK"
+          --prefix "$PREFIX" --fail-on "$FAIL_ON" "${more[@]}")
         set +e
-        node "$GITHUB_ACTION_PATH/bin/openapi-drift.js" check --spec "$SPEC" --source "$SOURCE" --framework "$FRAMEWORK" \
-          --prefix "$PREFIX" --fail-on "$FAIL_ON" --format markdown --output "$REPORT" "${more[@]}"
+        "${drift[@]}" --format markdown --output "$REPORT"
         status=$?
         set -e
+        # the same comparison in other forms; their notes are on stderr once already, the exit code is the first run's
+        if [ "$status" -le 1 ]; then
+          if [ "$ANNOTATIONS" = "true" ]; then "${drift[@]}" --format github 2>/dev/null || true; fi
+          if [ -n "$SARIF" ]; then
+            "${drift[@]}" --format sarif --output "$SARIF" >/dev/null 2>&1 || true
+            echo "sarif=$SARIF" >> "$GITHUB_OUTPUT"
+          fi
+        fi
         if [ -f "$REPORT" ]; then
           cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
           drifts=$(head -1 "$REPORT" | grep -oE '[0-9]+ drift' | grep -oE '[0-9]+' || echo 0)

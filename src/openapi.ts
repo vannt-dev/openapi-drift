@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import YAML from 'yaml';
+import YAML, { LineCounter, isMap, isScalar } from 'yaml';
 import { METHODS, type OpenApiDocument, type Operation, type OperationObject, type Parameter, type PathItem } from './types.ts';
 
 /** Reads an OpenAPI document, YAML or JSON. Throws with the file name when it cannot be read. */
@@ -101,6 +101,28 @@ export function basePath(doc: OpenApiDocument): string {
   p = p.replace(/\/+$/, '');
   if (p === '' || p === '/') return '';
   return p.startsWith('/') ? p : `/${p}`;
+}
+
+/**
+ * The line of each operation's method key (`get:`) in the text of a document, YAML or JSON, keyed
+ * `get /users/{id}` with the path as written under `paths`. Empty when the text cannot be read that way.
+ */
+export function operationLines(text: string): Map<string, number> {
+  const lines = new Map<string, number>();
+  const counter = new LineCounter();
+  const doc = YAML.parseDocument(text, { lineCounter: counter });
+  if (doc.errors.length) return lines;
+  const paths = doc.get('paths', true);
+  if (!isMap(paths)) return lines;
+  for (const pair of paths.items) {
+    if (!isScalar(pair.key) || typeof pair.key.value !== 'string' || !isMap(pair.value)) continue;
+    for (const op of pair.value.items) {
+      const key = op.key;
+      if (!isScalar(key) || typeof key.value !== 'string' || !(METHODS as readonly string[]).includes(key.value) || !key.range) continue;
+      lines.set(`${key.value} ${pair.key.value}`, counter.linePos(key.range[0]).line);
+    }
+  }
+  return lines;
 }
 
 /** The operations of a document, path as written (without the base path). */

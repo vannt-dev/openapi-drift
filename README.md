@@ -56,6 +56,7 @@ openapi-drift routes --source src                                # just list wha
 openapi-drift lint --spec openapi.yaml                           # problems of the document itself
 openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore 'GET /internal/**'
 openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json   # fail on new drift only
+openapi-drift check --spec openapi.yaml --source src --format sarif --output drift.sarif   # for code scanning
 ```
 
 | Option                 | Meaning                                                                                                                                                                                                                                                                                                                                         |
@@ -64,7 +65,7 @@ openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.js
 | `--source <dir>`       | The backend source tree (default `.`). `node_modules`, `dist`, `build`, tests and `.d.ts` files are skipped.                                                                                                                                                                                                                                    |
 | `--framework`          | `nestjs`, `express`, `fastify`, `spring` or `auto` (default): NestJS when a `.ts` file declares `@Controller`, Fastify or Express when a source file imports it, Spring when a Java or Kotlin file has a controller.                                                                                                                            |
 | `--prefix <path>`      | A prefix the code adds to every route and the source does not show: an Express mount built dynamically, a NestJS prefix that comes from the configuration. NestJS does not need it otherwise (see below). Given, it replaces what the code says; `/` means no prefix at all. The document's own base path (`servers[0].url`) is read by itself. |
-| `--format`             | `text` (default), `markdown` or `json`.                                                                                                                                                                                                                                                                                                         |
+| `--format`             | `text` (default), `markdown`, `json`, `sarif` (a SARIF 2.1.0 log for code scanning) or `github` (workflow commands that annotate the lines on GitHub); see [SARIF and annotations](#sarif-and-annotations).                                                                                                                                     |
 | `--output <file>`      | Also write the report to a file.                                                                                                                                                                                                                                                                                                                |
 | `--fail-on`            | `any` (default): drift in either direction fails; `spec`: only routes the document lacks; `code`: only operations the code lacks; `none`: report only.                                                                                                                                                                                          |
 | `--ignore <pattern>`   | Leave out the drift on a path: `/health`, `'GET /internal/**'`. May be given more than once.                                                                                                                                                                                                                                                    |
@@ -167,7 +168,64 @@ jobs:
           strict: 'true' # optional: query and status differences fail the job
 ```
 
-The Markdown report goes to the job summary and to `openapi-drift.md` (the `report` input), and the `drifts` output carries the count, so a later step can post it as a pull request comment.
+The Markdown report goes to the job summary and to `openapi-drift.md` (the `report` input), and the `drifts` output carries the count, so a later step can post it as a pull request comment. Each drift is also an annotation on its line: the route in the code, or the operation in the document.
+
+| Input         | Default            | Meaning                                                                                               |
+| ------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `spec`        | (required)         | The OpenAPI 3 document, YAML or JSON.                                                                 |
+| `source`      | `.`                | The backend source tree.                                                                              |
+| `framework`   | `auto`             | `nestjs`, `express`, `fastify`, `spring` or `auto`.                                                   |
+| `prefix`      | `''`               | As `--prefix`.                                                                                        |
+| `fail-on`     | `any`              | `any`, `spec`, `code` or `none`, as `--fail-on`.                                                      |
+| `ignore`      | `''`               | Ignore patterns, one a line.                                                                          |
+| `ignore-file` | `''`               | A file of ignore patterns.                                                                            |
+| `baseline`    | `''`               | A baseline file; the drift it lists is reported and does not fail the job.                            |
+| `strict`      | `'false'`          | `'true'`: query parameters and status codes that differ fail the job.                                 |
+| `report`      | `openapi-drift.md` | Where to write the Markdown report; it is also added to the job summary.                              |
+| `annotations` | `'true'`           | Each drift as an error, warning or notice on its line of the pull request. `'false'` leaves them out. |
+| `sarif`       | `''`               | Where to write a SARIF 2.1.0 log, for `github/codeql-action/upload-sarif`. Empty writes none.         |
+
+Outputs: `drifts` (the count), `report` (the Markdown file) and `sarif` (the SARIF file, when asked for).
+
+To see the drift under the repository's **Security → Code scanning** as well, with alerts that stay open until the drift is fixed, write a SARIF log and upload it. Code scanning needs the `security-events: write` permission and is free for public repositories; private ones need GitHub Code Security.
+
+```yaml
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vannt-dev/openapi-drift@v0
+        id: drift
+        with:
+          spec: openapi.yaml
+          source: src
+          sarif: openapi-drift.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always() && steps.drift.outputs.sarif != ''
+        with:
+          sarif_file: ${{ steps.drift.outputs.sarif }}
+          category: openapi-drift
+```
+
+`if: always()` uploads the log when the drift fails the job, which is when it matters.
+
+### SARIF and annotations
+
+`--format sarif` writes one result per finding, and `--format github` one workflow command (`::error file=src/users.ts,line=12::...`) per finding, which GitHub turns into an annotation when a workflow step prints it. A finding in the code points at the route's file and line; an operation the code lacks points at the document, at the line of its `get:`/`post:` key.
+
+| Rule                  | Finding                                                                 |
+| --------------------- | ----------------------------------------------------------------------- |
+| `missing-in-spec`     | A route of the code that the document does not describe.                |
+| `missing-in-code`     | An operation of the document that no route serves.                      |
+| `path-param-mismatch` | Path parameters named differently.                                      |
+| `query-mismatch`      | Query parameters that differ (see [Beyond the path](#beyond-the-path)). |
+| `status-mismatch`     | A status the code answers and the document does not describe.           |
+
+The level follows the exit code: `error` for what fails the run under `--fail-on` and `--strict`, `warning` for route drift that `--fail-on` lets pass, `note` for the rest. Drift a baseline accepts is in the SARIF log as a suppressed note and is not annotated; ignored drift is in neither. GitHub shows at most 10 error and 10 warning annotations a step and 50 a job; the SARIF log and the job summary hold all of it.
 
 ## As a library
 
@@ -190,7 +248,7 @@ Types are included.
 
 ## Roadmap
 
-Spring (`@RequestMapping`) and Fastify route extraction; comparing the document with a running server (status codes, response fields); `--fix` to propose the document changes as a patch.
+Comparing the document with a running server (status codes, response fields); `--fix` to propose the document changes as a patch.
 
 ## Development
 

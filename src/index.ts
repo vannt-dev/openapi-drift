@@ -1,4 +1,4 @@
-export { loadSpec, lintOpenApi, operations, basePath, normalizePath, pathParams, joinPath } from './openapi.ts';
+export { loadSpec, lintOpenApi, operations, operationLines, basePath, normalizePath, pathParams, joinPath } from './openapi.ts';
 export { extractNestRoutes, readNestApp } from './extract/nestjs.ts';
 export { extractExpressRoutes } from './extract/express.ts';
 export { extractFastifyRoutes } from './extract/fastify.ts';
@@ -6,6 +6,6 @@ export { extractSpringRoutes } from './extract/spring.ts';
 export { detectFramework, extractRoutes, type ExtractResult } from './extract/index.ts';
 export { compare, hasDrift } from './compare.ts';
 export { applyIgnore, applyBaseline, baselineOf, loadBaseline, parseIgnore, readIgnoreFile } from './filter.ts';
-export { textReport, markdownReport, jsonReport } from './report.ts';
+export { textReport, markdownReport, jsonReport, sarifReport, githubReport } from './report.ts';
 export { main, parseArgs, version } from './cli.ts';
 export * from './types.ts';
