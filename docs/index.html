@@ -333,6 +333,21 @@ src: 12 routes under /api
             </td>
           </tr>
           <tr>
+            <th>Fastify</th>
+            <td data-i18n="how.fastify">
+              <code>fastify.get('/x', ...)</code> and the other verbs, <code>fastify.route({ method, url })</code>, each under the prefixes
+              of the plugins given to <code>register</code>, in the same file or imported from another.
+            </td>
+          </tr>
+          <tr>
+            <th>Spring</th>
+            <td data-i18n="how.spring">
+              Java and Kotlin: <code>@GetMapping</code>, <code>@PostMapping</code>, <code>@PutMapping</code>, <code>@PatchMapping</code>,
+              <code>@DeleteMapping</code> and <code>@RequestMapping</code> on a <code>@RestController</code> or <code>@Controller</code>,
+              under the class's own <code>@RequestMapping</code>.
+            </td>
+          </tr>
+          <tr>
             <th data-i18n="how.doc.h">Document</th>
             <td data-i18n="how.doc">
               OpenAPI 3.x, YAML or JSON. The base path of <code>servers[0].url</code> is applied. <code>openapi-drift lint</code> lists the
@@ -346,14 +361,21 @@ src: 12 routes under /api
         <h2 data-i18n="act.h2">In a pull request</h2>
         <p class="sub" data-i18n="act.sub">
           The action writes the Markdown report to the job summary and exposes the number of drifts; <code>fail-on</code> chooses which
-          direction fails the job.
+          direction fails the job. Each drift is also an annotation on its line of the pull request (<code>annotations</code>, on by
+          default), and <code>sarif</code> writes a SARIF log for GitHub code scanning, where alerts stay open until the drift is fixed.
         </p>
         <pre>- uses: vannt-dev/openapi-drift@v0
+  id: drift
   with:
     spec: openapi.yaml
     source: src
     prefix: /api      <span class="dim"># optional</span>
-    fail-on: any      <span class="dim"># or spec, code, none</span></pre>
+    fail-on: any      <span class="dim"># or spec, code, none</span>
+    sarif: openapi-drift.sarif   <span class="dim"># optional, for code scanning</span>
+- uses: github/codeql-action/upload-sarif@v4
+  if: always() &amp;&amp; steps.drift.outputs.sarif != ''
+  with:
+    sarif_file: ${{ steps.drift.outputs.sarif }}</pre>
       </section>
 
       <section id="start">
@@ -362,7 +384,9 @@ src: 12 routes under /api
         <pre><span class="dim">$</span> npm install -g openapi-drift
 <span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src
 <span class="dim">$</span> openapi-drift routes --source src          <span class="dim"># what the code declares</span>
-<span class="dim">$</span> openapi-drift lint --spec openapi.yaml     <span class="dim"># the document's own problems</span></pre>
+<span class="dim">$</span> openapi-drift lint --spec openapi.yaml     <span class="dim"># the document's own problems</span>
+<span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src --format sarif --output drift.sarif
+<span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src --format github   <span class="dim"># annotations in a workflow</span></pre>
       </section>
 
       <footer>
@@ -399,11 +423,16 @@ src: 12 routes under /api
             "<code>@Controller('users')</code>, <code>@Controller({ path })</code>, <code>@Controller(['a', 'b'])</code> cùng <code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Patch</code>, <code>@Delete</code>, <code>@Head</code>, <code>@Options</code>, <code>@All</code>. Global prefix (<code>setGlobalPrefix</code>) và phiên bản trong URI được đọc từ code; <code>--prefix</code> dành cho giá trị mà nguồn không ghi ra.",
           'how.express':
             "<code>app.get('/x', ...)</code>, <code>router.post(...)</code>, <code>app.route('/x').get().post()</code>, <code>app.all</code>, với router mount bằng <code>app.use('/prefix', router)</code> trong cùng file hoặc import từ file khác.",
+          'how.fastify':
+            "<code>fastify.get('/x', ...)</code> và các verb khác, <code>fastify.route({ method, url })</code>, mỗi route nằm dưới tiền tố của các plugin truyền cho <code>register</code>, trong cùng file hoặc import từ file khác.",
+          'how.spring':
+            'Java và Kotlin: <code>@GetMapping</code>, <code>@PostMapping</code>, <code>@PutMapping</code>, <code>@PatchMapping</code>, <code>@DeleteMapping</code> và <code>@RequestMapping</code> trên <code>@RestController</code> hoặc <code>@Controller</code>, nằm dưới <code>@RequestMapping</code> của class.',
           'how.doc.h': 'Tài liệu',
           'how.doc':
             'OpenAPI 3.x, YAML hoặc JSON. Base path trong <code>servers[0].url</code> được áp dụng. <code>openapi-drift lint</code> liệt kê lỗi của chính tài liệu trước.',
           'act.h2': 'Trong pull request',
-          'act.sub': 'Action ghi báo cáo Markdown vào job summary và đưa ra số lệch; <code>fail-on</code> chọn chiều nào làm job fail.',
+          'act.sub':
+            'Action ghi báo cáo Markdown vào job summary và đưa ra số lệch; <code>fail-on</code> chọn chiều nào làm job fail. Mỗi chỗ lệch còn là một annotation trên đúng dòng của nó trong pull request (<code>annotations</code>, bật mặc định), và <code>sarif</code> ghi log SARIF cho GitHub code scanning, nơi alert mở cho tới khi sửa xong.',
           'gs.h2': 'Bắt đầu',
           'gs.sub': 'Node.js 22.18 trở lên.',
         },
