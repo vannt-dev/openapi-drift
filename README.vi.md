@@ -51,6 +51,7 @@ Node.js 22.18 trở lên.
 ```bash
 openapi-drift check --spec openapi.yaml --source src            # exit 1 khi có lệch
 openapi-drift check --spec openapi.yaml --source src --prefix /api --fail-on spec --format markdown --output drift.md
+openapi-drift check --spec openapi.yaml --source src --format sarif --output drift.sarif   # cho code scanning
 openapi-drift routes --source src                                # chỉ liệt kê route code khai báo
 openapi-drift lint --spec openapi.yaml                           # lỗi của chính tài liệu
 openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore 'GET /internal/**'
@@ -63,7 +64,7 @@ openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.js
 | `--source <dir>`       | Thư mục nguồn backend (mặc định `.`). Bỏ qua `node_modules`, `dist`, `build`, file test và `.d.ts`.                                                                                                                                                                                                       |
 | `--framework`          | `nestjs`, `express`, `fastify`, `spring` hoặc `auto` (mặc định): NestJS khi có file `.ts` khai báo `@Controller`, Fastify hoặc Express khi có file nguồn import nó, Spring khi có file Java hoặc Kotlin chứa controller.                                                                                  |
 | `--prefix <path>`      | Tiền tố code thêm vào mọi route mà nguồn không hiện ra: mount Express dựng động, tiền tố NestJS lấy từ cấu hình. Ngoài trường hợp đó NestJS không cần (xem bên dưới). Khi truyền, nó thay cho những gì đọc từ code; `/` nghĩa là không có tiền tố. Base path của tài liệu (`servers[0].url`) được tự đọc. |
-| `--format`             | `text` (mặc định), `markdown` hoặc `json`.                                                                                                                                                                                                                                                                |
+| `--format`             | `text` (mặc định), `markdown`, `json`, `sarif` (log SARIF 2.1.0 cho code scanning) hoặc `github` (workflow command gắn chú thích lên dòng code trên GitHub); xem [SARIF và annotation](#sarif-và-annotation).                                                                                             |
 | `--output <file>`      | Ghi thêm báo cáo ra file.                                                                                                                                                                                                                                                                                 |
 | `--fail-on`            | `any` (mặc định): lệch chiều nào cũng fail; `spec`: chỉ route tài liệu thiếu; `code`: chỉ operation code thiếu; `none`: chỉ báo cáo.                                                                                                                                                                      |
 | `--ignore <pattern>`   | Bỏ qua lệch trên một đường dẫn: `/health`, `'GET /internal/**'`. Dùng được nhiều lần.                                                                                                                                                                                                                     |
@@ -166,7 +167,64 @@ jobs:
           strict: 'true' # tuỳ chọn: khác biệt về query và mã trạng thái làm job thất bại
 ```
 
-Báo cáo Markdown vào job summary và file `openapi-drift.md` (input `report`); output `drifts` mang số lệch, để bước sau đăng thành bình luận trên pull request.
+Báo cáo Markdown vào job summary và file `openapi-drift.md` (input `report`); output `drifts` mang số lệch, để bước sau đăng thành bình luận trên pull request. Mỗi chỗ lệch còn là một annotation trên đúng dòng của nó: route trong code, hoặc operation trong tài liệu.
+
+| Input         | Mặc định           | Ý nghĩa                                                                                                  |
+| ------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `spec`        | (bắt buộc)         | Tài liệu OpenAPI 3, YAML hoặc JSON.                                                                      |
+| `source`      | `.`                | Thư mục mã nguồn backend.                                                                                |
+| `framework`   | `auto`             | `nestjs`, `express`, `fastify`, `spring` hoặc `auto`.                                                    |
+| `prefix`      | `''`               | Như `--prefix`.                                                                                          |
+| `fail-on`     | `any`              | `any`, `spec`, `code` hoặc `none`, như `--fail-on`.                                                      |
+| `ignore`      | `''`               | Các ignore pattern, mỗi dòng một pattern.                                                                |
+| `ignore-file` | `''`               | File chứa ignore pattern.                                                                                |
+| `baseline`    | `''`               | File baseline; chỗ lệch có trong đó được báo cáo nhưng không làm job thất bại.                           |
+| `strict`      | `'false'`          | `'true'`: query parameter và mã trạng thái khác nhau làm job thất bại.                                   |
+| `report`      | `openapi-drift.md` | Nơi ghi báo cáo Markdown; báo cáo cũng được thêm vào job summary.                                        |
+| `annotations` | `'true'`           | Mỗi chỗ lệch thành một error, warning hoặc notice trên dòng của nó trong pull request. `'false'` để tắt. |
+| `sarif`       | `''`               | Nơi ghi log SARIF 2.1.0, cho `github/codeql-action/upload-sarif`. Để trống thì không ghi.                |
+
+Output: `drifts` (số lệch), `report` (file Markdown) và `sarif` (file SARIF, khi có yêu cầu).
+
+Để thấy chỗ lệch trong **Security → Code scanning** của repository, với alert mở cho tới khi sửa xong, hãy ghi log SARIF và upload. Code scanning cần quyền `security-events: write`, miễn phí cho repository public; repository private cần GitHub Code Security.
+
+```yaml
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vannt-dev/openapi-drift@v0
+        id: drift
+        with:
+          spec: openapi.yaml
+          source: src
+          sarif: openapi-drift.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always() && steps.drift.outputs.sarif != ''
+        with:
+          sarif_file: ${{ steps.drift.outputs.sarif }}
+          category: openapi-drift
+```
+
+`if: always()` để vẫn upload log khi chỗ lệch làm job thất bại, cũng là lúc cần nó nhất.
+
+### SARIF và annotation
+
+`--format sarif` ghi mỗi phát hiện thành một result, `--format github` ghi mỗi phát hiện thành một workflow command (`::error file=src/users.ts,line=12::...`), GitHub biến nó thành annotation khi một bước workflow in ra. Phát hiện trong code trỏ tới file và dòng của route; operation mà code thiếu trỏ tới tài liệu, ở dòng của khoá `get:`/`post:`.
+
+| Rule                  | Phát hiện                                            |
+| --------------------- | ---------------------------------------------------- |
+| `missing-in-spec`     | Route trong code mà tài liệu không mô tả.            |
+| `missing-in-code`     | Operation trong tài liệu mà không route nào phục vụ. |
+| `path-param-mismatch` | Path parameter đặt tên khác nhau.                    |
+| `query-mismatch`      | Query parameter khác nhau.                           |
+| `status-mismatch`     | Mã trạng thái code trả về mà tài liệu không mô tả.   |
+
+Mức độ đi theo exit code: `error` cho thứ làm lần chạy thất bại theo `--fail-on` và `--strict`, `warning` cho lệch route mà `--fail-on` cho qua, `note` cho phần còn lại. Chỗ lệch baseline chấp nhận nằm trong log SARIF dưới dạng note bị suppress và không thành annotation; chỗ lệch bị ignore thì không có ở cả hai. GitHub hiện tối đa 10 annotation error và 10 annotation warning mỗi bước, 50 mỗi job; log SARIF và job summary chứa đầy đủ.
 
 ## Dùng như thư viện
 
@@ -189,7 +247,7 @@ Có kèm khai báo kiểu.
 
 ## Lộ trình
 
-Đọc route Spring (`@RequestMapping`) và Fastify; so tài liệu với server đang chạy (status code, field trong response); `--fix` đề xuất thay đổi tài liệu dưới dạng patch.
+So tài liệu với server đang chạy (status code, field trong response); `--fix` đề xuất thay đổi tài liệu dưới dạng patch.
 
 ## Phát triển
 

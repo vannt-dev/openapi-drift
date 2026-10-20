@@ -149,8 +149,8 @@ export interface Baseline {
 export type FailOn = 'any' | 'spec' | 'code' | 'none';
 export const FAIL_ON: readonly FailOn[] = ['any', 'spec', 'code', 'none'];
 
-export type Format = 'text' | 'markdown' | 'json';
-export const FORMATS: readonly Format[] = ['text', 'markdown', 'json'];
+export type Format = 'text' | 'markdown' | 'json' | 'sarif' | 'github';
+export const FORMATS: readonly Format[] = ['text', 'markdown', 'json', 'sarif', 'github'];
 
 export interface ReportContext {
   spec: string;
@@ -161,6 +161,15 @@ export interface ReportContext {
   app?: AppSettings;
   /** Whether differences in query parameters and status codes fail the run; the report words them accordingly. */
   strict?: boolean;
+  /** The `--fail-on` policy (default `any`): SARIF and annotations mark what fails the run as an error. */
+  failOn?: FailOn;
+  /**
+   * The line of each operation in the document, keyed `get /users/{id}` (path as written under `paths`), as
+   * `operationLines` reads it; SARIF and annotations point there for what only the document has.
+   */
+  specLines?: Map<string, number>;
+  /** The version of openapi-drift, for the SARIF log to name the tool. */
+  version?: string;
 }
 
 /** An OpenAPI document as parsed; only what this tool reads is typed. */
