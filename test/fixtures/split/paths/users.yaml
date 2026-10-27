@@ -1,0 +1,27 @@
+get:
+  operationId: listUsers
+  parameters:
+    - $ref: ../components/parameters/limit.yaml
+  responses:
+    '200':
+      description: The users
+      content:
+        application/json:
+          schema:
+            $ref: '#/schemas/UserList'
+post:
+  operationId: createUser
+  requestBody:
+    $ref: '#/bodies/User'
+  responses:
+    '201':
+      description: Created
+schemas:
+  UserList:
+    type: array
+bodies:
+  User:
+    content:
+      application/json:
+        schema:
+          type: object

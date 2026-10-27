@@ -44,3 +44,23 @@ test('operations, pathParams, normalizePath and joinPath', () => {
   assert.equal(joinPath('', 'users', ''), '/users');
   assert.equal(joinPath(), '/');
 });
+
+test('a split document is read through the files its path items and parameters refer to', () => {
+  const doc = loadSpec(fixture('split', 'openapi.yaml'));
+  assert.deepEqual(operations(doc), [
+    { method: 'get', path: '/users', params: [], query: ['limit'], responses: ['200'], operationId: 'listUsers' },
+    { method: 'post', path: '/users', params: [], query: [], responses: ['201'], operationId: 'createUser' },
+    { method: 'get', path: '/users/{id}', params: ['id'], query: [], responses: ['200', '404'], operationId: 'getUser' },
+    { method: 'get', path: '/health', params: [], query: ['verbose'], responses: ['200'] },
+  ]);
+  // references inside another file point into that file, not into the main document
+  assert.deepEqual(lintOpenApi(doc), []);
+});
+
+test('a split document names the reference that cannot be followed', () => {
+  assert.throws(
+    () => loadSpec(fixture('split-bad', 'missing.yaml')),
+    /missing\.yaml: \$ref '\.\/paths\/nope\.yaml': .*nope\.yaml: cannot read/
+  );
+  assert.throws(() => loadSpec(fixture('split-bad', 'loop.yaml')), /loop\.yaml: \$ref '\.\/loop\.yaml#\/x' refers back to itself/);
+});
