@@ -1,0 +1,17 @@
+user:
+  parameters:
+    - $ref: '#/params/id'
+  get:
+    operationId: getUser
+    responses:
+      '200':
+        description: The user
+      '404':
+        description: Not found
+params:
+  id:
+    name: id
+    in: path
+    required: true
+    schema:
+      type: string

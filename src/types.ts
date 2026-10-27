@@ -197,7 +197,7 @@ export interface OperationObject {
   operationId?: string;
   parameters?: Parameter[];
   responses?: Record<string, unknown>;
-  requestBody?: { content?: unknown };
+  requestBody?: { content?: unknown; $ref?: string };
 }
 
 export interface Parameter {

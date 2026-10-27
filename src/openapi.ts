@@ -1,23 +1,108 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import YAML, { LineCounter, isMap, isScalar } from 'yaml';
 import { METHODS, type OpenApiDocument, type Operation, type OperationObject, type Parameter, type PathItem } from './types.ts';
 
-/** Reads an OpenAPI document, YAML or JSON. Throws with the file name when it cannot be read. */
+/**
+ * Reads an OpenAPI document, YAML or JSON. A document split into files (`/users: {$ref: ./paths/users.yaml}`) is
+ * read through them: path items and parameters kept in another file are put in place. Throws with the file name
+ * when it cannot be read.
+ */
 export function loadSpec(file: string): OpenApiDocument {
+  const doc = readDocument(file) as OpenApiDocument;
+  inlineSplit(doc, file);
+  return doc;
+}
+
+function readDocument(file: string, shown = file): object {
   let text: string;
   try {
     text = fs.readFileSync(file, 'utf8');
   } catch (e) {
-    throw new Error(`${file}: cannot read the file`, { cause: e });
+    throw new Error(`${shown}: cannot read the file`, { cause: e });
   }
   let doc: unknown;
   try {
     doc = YAML.parse(text);
   } catch (e) {
-    throw new Error(`${file}: not valid YAML or JSON: ${(e as Error).message.split('\n')[0]}`, { cause: e });
+    throw new Error(`${shown}: not valid YAML or JSON: ${(e as Error).message.split('\n')[0]}`, { cause: e });
   }
-  if (!doc || typeof doc !== 'object') throw new Error(`${file}: not an OpenAPI document (not an object)`);
-  return doc as OpenApiDocument;
+  if (!doc || typeof doc !== 'object') throw new Error(`${shown}: not an OpenAPI document (not an object)`);
+  return doc;
+}
+
+/** Marks what was read from another file: its `#/...` references point into that file, not this document. */
+const FROM_FILE = Symbol('openapi-drift.fromFile');
+
+/** Puts the path items and parameters that a split document keeps in other files in place. */
+function inlineSplit(doc: OpenApiDocument, main: string): void {
+  const files = new Map<string, object>([[path.resolve(main), doc]]);
+  const shown = (f: string): string => (path.isAbsolute(f) ? path.relative(process.cwd(), f).replace(/\\/g, '/') || f : f);
+  const read = (abs: string): object => {
+    let d = files.get(abs);
+    if (!d) files.set(abs, (d = readDocument(abs, shown(abs))));
+    return d;
+  };
+
+  /** The object a `$ref` to another file leads to, with the file it is in; anything else as it is. */
+  const follow = (node: unknown, file: string, seen = new Set<string>()): { value: unknown; file: string } => {
+    if (!node || typeof node !== 'object' || typeof (node as { $ref?: unknown }).$ref !== 'string') return { value: node, file };
+    const ref = (node as { $ref: string }).$ref;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(ref)) return { value: node, file }; // a URL is not fetched
+    const hash = ref.indexOf('#');
+    const target = hash < 0 ? ref : ref.slice(0, hash);
+    const pointer = hash < 0 ? '' : ref.slice(hash + 1);
+    // the main document's own references are followed where they are used
+    if (!target && path.resolve(file) === path.resolve(main)) return { value: node, file };
+    const abs = target ? path.resolve(path.dirname(file), target) : path.resolve(file);
+    const key = `${abs}#${pointer}`;
+    if (seen.has(key)) throw new Error(`${shown(file)}: $ref '${ref}' refers back to itself`);
+    seen.add(key);
+    let root: object;
+    try {
+      root = read(abs);
+    } catch (e) {
+      throw new Error(`${shown(file)}: $ref '${ref}': ${(e as Error).message}`, { cause: e });
+    }
+    const value = pointer
+      .split('/')
+      .slice(1)
+      .reduce<unknown>(
+        (o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k.replace(/~1/g, '/').replace(/~0/g, '~')] : undefined),
+        root
+      );
+    if (value === undefined) throw new Error(`${shown(file)}: $ref '${ref}' points to nothing`);
+    return follow(value, abs, seen);
+  };
+
+  const fromFile = <T extends object>(value: T, file: string): T => {
+    if (path.resolve(file) === path.resolve(main)) return value;
+    const copy = { ...value };
+    Object.defineProperty(copy, FROM_FILE, { value: file });
+    return copy;
+  };
+  const params = (list: unknown, file: string): unknown =>
+    Array.isArray(list)
+      ? list.map((p) => {
+          const found = follow(p, file);
+          return found.value && typeof found.value === 'object' ? fromFile(found.value, found.file) : found.value;
+        })
+      : list;
+
+  for (const [p, given] of Object.entries(doc.paths ?? {})) {
+    const { value, file } = follow(given, main);
+    if (!value || typeof value !== 'object') continue;
+    const item = fromFile(value as PathItem, file);
+    if (item.parameters) item.parameters = params(item.parameters, file) as Parameter[];
+    for (const m of METHODS) {
+      const op = item[m];
+      if (op && typeof op === 'object' && op.parameters)
+        item[m] = fromFile({ ...op, parameters: params(op.parameters, file) as Parameter[] }, file);
+    }
+    if (item !== given) (doc.paths as Record<string, PathItem>)[p] = item;
+  }
+  const shared = doc.components?.parameters;
+  if (shared) for (const [name, given] of Object.entries(shared)) shared[name] = (params([given], main) as Parameter[])[0];
 }
 
 /** Problems of an OpenAPI 3 document, as a person would list them; empty when it is sound. */
@@ -57,7 +142,7 @@ export function lintOpenApi(doc: unknown): string[] {
           problems.push(`${where}: path parameter {${name}} is not declared (parameters: - {name: ${name}, in: path, required: true})`);
         else if (declared.required !== true) problems.push(`${where}: path parameter {${name}} must be required: true`);
       }
-      if (o.requestBody && !(o.requestBody.content && typeof o.requestBody.content === 'object'))
+      if (o.requestBody && !o.requestBody.$ref && !(o.requestBody.content && typeof o.requestBody.content === 'object'))
         problems.push(`${where}: requestBody needs a content map (application/json: {schema: ...})`);
     }
   }
@@ -78,6 +163,7 @@ export function lintOpenApi(doc: unknown): string[] {
 function refs(node: unknown, out: string[] = []): string[] {
   if (Array.isArray(node)) node.forEach((n) => refs(n, out));
   else if (node && typeof node === 'object') {
+    if (FROM_FILE in node) return out; // its references point into the file it came from
     for (const [k, v] of Object.entries(node)) {
       if (k === '$ref' && typeof v === 'string') out.push(v);
       else refs(v, out);

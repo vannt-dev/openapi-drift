@@ -1,0 +1,4 @@
+name: verbose
+in: query
+schema:
+  type: boolean
