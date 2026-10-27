@@ -350,8 +350,8 @@ src: 12 routes under /api
           <tr>
             <th data-i18n="how.doc.h">Document</th>
             <td data-i18n="how.doc">
-              OpenAPI 3.x, YAML or JSON. The base path of <code>servers[0].url</code> is applied. <code>openapi-drift lint</code> lists the
-              document's own problems first.
+              OpenAPI 3.x, YAML or JSON, in one file or split into files (<code>$ref: ./paths/users.yaml</code>). The base path of
+              <code>servers[0].url</code> is applied. <code>openapi-drift lint</code> lists the document's own problems first.
             </td>
           </tr>
         </table>
@@ -429,7 +429,7 @@ src: 12 routes under /api
             'Java và Kotlin: <code>@GetMapping</code>, <code>@PostMapping</code>, <code>@PutMapping</code>, <code>@PatchMapping</code>, <code>@DeleteMapping</code> và <code>@RequestMapping</code> trên <code>@RestController</code> hoặc <code>@Controller</code>, nằm dưới <code>@RequestMapping</code> của class.',
           'how.doc.h': 'Tài liệu',
           'how.doc':
-            'OpenAPI 3.x, YAML hoặc JSON. Base path trong <code>servers[0].url</code> được áp dụng. <code>openapi-drift lint</code> liệt kê lỗi của chính tài liệu trước.',
+            'OpenAPI 3.x, YAML hoặc JSON, một file hoặc chia nhiều file (<code>$ref: ./paths/users.yaml</code>). Base path trong <code>servers[0].url</code> được áp dụng. <code>openapi-drift lint</code> liệt kê lỗi của chính tài liệu trước.',
           'act.h2': 'Trong pull request',
           'act.sub':
             'Action ghi báo cáo Markdown vào job summary và đưa ra số lệch; <code>fail-on</code> chọn chiều nào làm job fail. Mỗi chỗ lệch còn là một annotation trên đúng dòng của nó trong pull request (<code>annotations</code>, bật mặc định), và <code>sarif</code> ghi log SARIF cho GitHub code scanning, nơi alert mở cho tới khi sửa xong.',
