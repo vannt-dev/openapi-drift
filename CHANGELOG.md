@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.4.0](https://github.com/vannt-dev/openapi-drift/compare/v0.3.0...v0.4.0) (2026-10-27)
+
+
+### Features
+
+* read a document split into files ([ff9b632](https://github.com/vannt-dev/openapi-drift/commit/ff9b6327549024b9d1519ab43ff3f44c74382222))
+* read a document split into files ([4c77d7a](https://github.com/vannt-dev/openapi-drift/commit/4c77d7a14d3d5a30e0d25c28cf3b47ef501fffca))
+
 ## [0.3.0](https://github.com/vannt-dev/openapi-drift/compare/v0.2.0...v0.3.0) (2026-10-20)
 
 
