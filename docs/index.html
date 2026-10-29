@@ -6,7 +6,7 @@
     <title>openapi-drift</title>
     <meta
       name="description"
-      content="Keeps an OpenAPI document honest: compares it with the routes in your NestJS, Express, Fastify or Spring code and reports the drift, as a CLI and a GitHub Action."
+      content="Checks an OpenAPI document against the routes in your NestJS, Express, Fastify or Spring source code, without running the API. A CLI and a GitHub Action for the pull request."
     />
     <link
       rel="icon"
@@ -250,10 +250,11 @@
       </nav>
 
       <header>
-        <h1 data-i18n="hero.h1">Your OpenAPI document, checked against the code that serves it.</h1>
+        <h1 data-i18n="hero.h1">Your OpenAPI document, checked against the source code.</h1>
         <p class="lead" data-i18n="hero.lead">
-          openapi-drift reads the routes your NestJS, Express, Fastify or Spring code actually declares, compares them with the document,
-          and fails the build when they disagree, in either direction. No AI, no network, no build of your project.
+          openapi-drift reads the routes your NestJS, Express, Fastify or Spring code declares straight from the source files, compares them
+          with the document, and fails the build when they disagree, in either direction. No running server, no network, no AI, no build of
+          your project: it runs in CI or as a GitHub Action on the pull request.
         </p>
         <div class="cta">
           <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
@@ -402,9 +403,9 @@ src: 12 routes under /api
         vi: {
           'nav.how': 'Cách hoạt động',
           'nav.action': 'GitHub Action',
-          'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với chính code đang phục vụ nó.',
+          'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với mã nguồn.',
           'hero.lead':
-            'openapi-drift đọc các route mà code NestJS, Express, Fastify hoặc Spring của bạn thật sự khai báo, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không AI, không mạng, không cần build dự án.',
+            'openapi-drift đọc các route mà code NestJS, Express, Fastify hoặc Spring của bạn khai báo, ngay từ file nguồn, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không cần chạy server, không mạng, không AI, không cần build dự án: chạy trong CI hoặc bằng GitHub Action trên pull request.',
           'cta.start': 'Bắt đầu',
           'cta.docs': 'Tài liệu',
           'why.h2': 'Vì sao',
