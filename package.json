@@ -1,7 +1,7 @@
 {
   "name": "openapi-drift",
   "version": "0.4.0",
-  "description": "Keeps an OpenAPI document honest: compares it with the routes in your NestJS, Express, Fastify or Spring code and reports the drift, as a CLI and a GitHub Action.",
+  "description": "Checks an OpenAPI document against the routes in your NestJS, Express, Fastify or Spring source code, without running the API. CLI and GitHub Action.",
   "keywords": [
     "openapi",
     "swagger",
