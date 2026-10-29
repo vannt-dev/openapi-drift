@@ -7,13 +7,15 @@
 
 Tiếng Việt: [README.vi.md](README.vi.md)
 
-Keeps an OpenAPI document honest. `openapi-drift` reads the routes your **NestJS**, **Express**, **Fastify** or **Spring** code actually declares, compares them with the document, and reports the drift in both directions:
+Checks an OpenAPI document against your source code, without running the API. `openapi-drift` reads the routes your **NestJS**, **Express**, **Fastify** or **Spring** code declares straight from the source files, compares them with the document, and reports the drift in both directions:
 
 - routes the code serves that the document does not describe,
 - operations the document describes that no route serves,
 - and, as notes, path parameters named differently (`{id}` in the document, `:orderId` in the code), query parameters a handler reads that the document does not describe (or the other way round), and statuses the code answers with that the document does not describe.
 
-Everything built on the document (generated tests, client SDKs, mocks, reviewers) is only as good as the document. Run this in CI and a pull request can no longer change the API without changing the document.
+Everything built on the document (generated tests, client SDKs, mocks, reviewers) is only as good as the document. Run this in CI, or as a GitHub Action on the pull request, and a pull request can no longer change the API without changing the document.
+
+Not to be confused with SmartBear's Drift (Swagger Contract Testing), which sends requests to an API and validates the responses against the document: `openapi-drift` never calls the API, it reads the routes from the code.
 
 ```
 $ openapi-drift check --spec openapi.yaml --source src --prefix /api

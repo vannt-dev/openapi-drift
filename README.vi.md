@@ -6,13 +6,15 @@
 
 English: [README.md](README.md)
 
-Giữ cho tài liệu OpenAPI không nói dối. `openapi-drift` đọc các route mà code **NestJS**, **Express**, **Fastify** hoặc **Spring** của bạn thật sự khai báo, so với tài liệu, và báo độ lệch theo cả hai chiều:
+Đối chiếu tài liệu OpenAPI với mã nguồn, không cần chạy API. `openapi-drift` đọc các route mà code **NestJS**, **Express**, **Fastify** hoặc **Spring** của bạn khai báo, ngay từ file nguồn, so với tài liệu, và báo độ lệch theo cả hai chiều:
 
 - route code đang phục vụ mà tài liệu không mô tả,
 - operation tài liệu mô tả mà không route nào phục vụ,
 - và, ở mức ghi chú: tham số đường dẫn đặt tên khác nhau (`{id}` trong tài liệu, `:orderId` trong code), query parameter mà handler đọc nhưng tài liệu không mô tả (hoặc ngược lại), và mã trạng thái code trả về mà tài liệu không mô tả.
 
-Mọi thứ dựng trên tài liệu (test sinh tự động, SDK client, mock, người review) chỉ đúng khi tài liệu đúng. Chạy trong CI thì một pull request không thể đổi API mà không đổi tài liệu.
+Mọi thứ dựng trên tài liệu (test sinh tự động, SDK client, mock, người review) chỉ đúng khi tài liệu đúng. Chạy trong CI, hoặc dùng GitHub Action trên pull request, thì một pull request không thể đổi API mà không đổi tài liệu.
+
+Đừng nhầm với Drift của SmartBear (Swagger Contract Testing): Drift gửi request tới API rồi kiểm tra response theo tài liệu, còn `openapi-drift` không bao giờ gọi API mà đọc route từ code.
 
 ```
 $ openapi-drift check --spec openapi.yaml --source src --prefix /api
