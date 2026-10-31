@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.5.0](https://github.com/vannt-dev/openapi-drift/compare/v0.4.0...v0.5.0) (2026-10-31)
+
+
+### Features
+
+* read routes from Hono apps ([98f366a](https://github.com/vannt-dev/openapi-drift/commit/98f366ac93958b1f731e4c9f6754135ab655f6a8))
+* read routes from Hono apps ([e838f25](https://github.com/vannt-dev/openapi-drift/commit/e838f252baea4d306c7446210fa3b81bc9ae17ac))
+
 ## [0.4.0](https://github.com/vannt-dev/openapi-drift/compare/v0.3.0...v0.4.0) (2026-10-27)
 
 A document split into files (the Redocly layout, `/users: {$ref: ./paths/users.yaml}`)

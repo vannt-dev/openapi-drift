@@ -1,6 +1,6 @@
 {
   "name": "openapi-drift",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Checks an OpenAPI document against the routes in your NestJS, Express, Fastify, Hono or Spring source code, without running the API. CLI and GitHub Action.",
   "keywords": [
     "openapi",
