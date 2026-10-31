@@ -128,6 +128,11 @@ export function extractFastifyRoutes(dir: string, { prefix = '' }: ExtractOption
     }
   }
   if ([...parsed.values()].some((info) => /\bexposeHeadRoutes\s*:\s*false\b/.test(info.src))) return out;
+  return withImplicitHead(out);
+}
+
+/** The routes, with the HEAD a framework answers by itself on every path that has a GET and no HEAD of its own. */
+export function withImplicitHead(out: Route[]): Route[] {
   const heads = new Set(out.filter((r) => r.method === 'head').map((r) => normalizePath(r.path)));
   const implicit: Route[] = [];
   for (const r of out) {

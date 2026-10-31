@@ -6,7 +6,7 @@
     <title>openapi-drift</title>
     <meta
       name="description"
-      content="Checks an OpenAPI document against the routes in your NestJS, Express, Fastify or Spring source code, without running the API. A CLI and a GitHub Action for the pull request."
+      content="Checks an OpenAPI document against the routes in your NestJS, Express, Fastify, Hono or Spring source code, without running the API. A CLI and a GitHub Action for the pull request."
     />
     <link
       rel="icon"
@@ -252,9 +252,9 @@
       <header>
         <h1 data-i18n="hero.h1">Your OpenAPI document, checked against the source code.</h1>
         <p class="lead" data-i18n="hero.lead">
-          openapi-drift reads the routes your NestJS, Express, Fastify or Spring code declares straight from the source files, compares them
-          with the document, and fails the build when they disagree, in either direction. No running server, no network, no AI, no build of
-          your project: it runs in CI or as a GitHub Action on the pull request.
+          openapi-drift reads the routes your NestJS, Express, Fastify, Hono or Spring code declares straight from the source files,
+          compares them with the document, and fails the build when they disagree, in either direction. No running server, no network, no
+          AI, no build of your project: it runs in CI or as a GitHub Action on the pull request.
         </p>
         <div class="cta">
           <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
@@ -299,8 +299,8 @@ src: 12 routes under /api
           <div class="card">
             <h3 data-i18n="why.2.h">Read from the source</h3>
             <p data-i18n="why.2">
-              NestJS decorators, Express and Fastify calls and Spring annotations are read from the source text. Nothing is installed or
-              started, so it runs in a second on any CI runner.
+              NestJS decorators, Express, Fastify and Hono calls and Spring annotations are read from the source text. Nothing is installed
+              or started, so it runs in a second on any CI runner.
             </p>
           </div>
           <div class="card">
@@ -338,6 +338,14 @@ src: 12 routes under /api
             <td data-i18n="how.fastify">
               <code>fastify.get('/x', ...)</code> and the other verbs, <code>fastify.route({ method, url })</code>, each under the prefixes
               of the plugins given to <code>register</code>, in the same file or imported from another.
+            </td>
+          </tr>
+          <tr>
+            <th>Hono</th>
+            <td data-i18n="how.hono">
+              <code>app.get('/x', ...)</code> and the other verbs, <code>app.on(method, path)</code>, chains, under
+              <code>basePath('/api')</code> and the prefixes of <code>app.route('/users', users)</code>, in the same file or imported from
+              another. <code>:id{[0-9]+}</code> and <code>:id?</code> are <code>{id}</code>.
             </td>
           </tr>
           <tr>
@@ -405,7 +413,7 @@ src: 12 routes under /api
           'nav.action': 'GitHub Action',
           'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với mã nguồn.',
           'hero.lead':
-            'openapi-drift đọc các route mà code NestJS, Express, Fastify hoặc Spring của bạn khai báo, ngay từ file nguồn, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không cần chạy server, không mạng, không AI, không cần build dự án: chạy trong CI hoặc bằng GitHub Action trên pull request.',
+            'openapi-drift đọc các route mà code NestJS, Express, Fastify, Hono hoặc Spring của bạn khai báo, ngay từ file nguồn, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không cần chạy server, không mạng, không AI, không cần build dự án: chạy trong CI hoặc bằng GitHub Action trên pull request.',
           'cta.start': 'Bắt đầu',
           'cta.docs': 'Tài liệu',
           'why.h2': 'Vì sao',
@@ -415,7 +423,7 @@ src: 12 routes under /api
           'why.1': 'Route code đang phục vụ mà tài liệu không mô tả, và operation tài liệu hứa mà không route nào phục vụ.',
           'why.2.h': 'Đọc từ mã nguồn',
           'why.2':
-            'Decorator NestJS, lời gọi Express và Fastify, annotation Spring được đọc từ văn bản nguồn. Không cài, không khởi động gì, nên chạy trong một giây trên mọi runner CI.',
+            'Decorator NestJS, lời gọi Express, Fastify và Hono, annotation Spring được đọc từ văn bản nguồn. Không cài, không khởi động gì, nên chạy trong một giây trên mọi runner CI.',
           'why.3.h': 'Tên không quan trọng, route mới quan trọng',
           'why.3':
             '<code>/users/{id}</code> và <code>/Users/:userId</code> là một route; tên tham số khác nhau chỉ là ghi chú, không fail.',
@@ -426,6 +434,8 @@ src: 12 routes under /api
             "<code>app.get('/x', ...)</code>, <code>router.post(...)</code>, <code>app.route('/x').get().post()</code>, <code>app.all</code>, với router mount bằng <code>app.use('/prefix', router)</code> trong cùng file hoặc import từ file khác.",
           'how.fastify':
             "<code>fastify.get('/x', ...)</code> và các verb khác, <code>fastify.route({ method, url })</code>, mỗi route nằm dưới tiền tố của các plugin truyền cho <code>register</code>, trong cùng file hoặc import từ file khác.",
+          'how.hono':
+            "<code>app.get('/x', ...)</code> và các verb khác, <code>app.on(method, path)</code>, chuỗi gọi nối, nằm dưới <code>basePath('/api')</code> và tiền tố của <code>app.route('/users', users)</code>, trong cùng file hoặc import từ file khác. <code>:id{[0-9]+}</code> và <code>:id?</code> thành <code>{id}</code>.",
           'how.spring':
             'Java và Kotlin: <code>@GetMapping</code>, <code>@PostMapping</code>, <code>@PutMapping</code>, <code>@PatchMapping</code>, <code>@DeleteMapping</code> và <code>@RequestMapping</code> trên <code>@RestController</code> hoặc <code>@Controller</code>, nằm dưới <code>@RequestMapping</code> của class.',
           'how.doc.h': 'Tài liệu',

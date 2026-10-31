@@ -1,5 +1,5 @@
 name: OpenAPI drift
-description: Compares an OpenAPI document with the routes in your NestJS, Express, Fastify or Spring code and fails the job on drift.
+description: Compares an OpenAPI document with the routes in your NestJS, Express, Fastify, Hono or Spring code and fails the job on drift.
 author: Van Nguyen
 branding:
   icon: git-compare
@@ -14,7 +14,7 @@ inputs:
     required: false
     default: .
   framework:
-    description: nestjs, express, fastify, spring or auto.
+    description: nestjs, express, fastify, hono, spring or auto.
     required: false
     default: auto
   prefix:
