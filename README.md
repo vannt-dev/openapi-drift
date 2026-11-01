@@ -13,6 +13,11 @@ Checks an OpenAPI document against your source code, without running the API. `o
 - operations the document describes that no route serves,
 - and, as notes, path parameters named differently (`{id}` in the document, `:orderId` in the code), query parameters a handler reads that the document does not describe (or the other way round), and statuses the code answers with that the document does not describe.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vannt-dev/openapi-drift/main/docs/diagrams/overview-dark.svg">
+  <img alt="openapi-drift reads the operations of the OpenAPI document and the routes of the NestJS, Express, Fastify, Hono or Spring source, compares them both ways, applies the ignore patterns and baseline, and writes a report, a SARIF log, GitHub annotations and an exit code that fails CI on drift." src="https://raw.githubusercontent.com/vannt-dev/openapi-drift/main/docs/diagrams/overview-light.svg">
+</picture>
+
 Everything built on the document (generated tests, client SDKs, mocks, reviewers) is only as good as the document. Run this in CI, or as a GitHub Action on the pull request, and a pull request can no longer change the API without changing the document.
 
 Not to be confused with SmartBear's Drift (Swagger Contract Testing), which sends requests to an API and validates the responses against the document: `openapi-drift` never calls the API, it reads the routes from the code.

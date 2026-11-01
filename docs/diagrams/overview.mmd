@@ -1,0 +1,28 @@
+%% Re-render the SVGs after editing: npm run diagrams
+flowchart LR
+  spec["OpenAPI<br/>document<br/>YAML or JSON"]
+  code["Backend source<br/>NestJS, Express,<br/>Fastify, Hono<br/>or Spring"]
+  accepted["Ignore patterns<br/>and baseline"]
+
+  subgraph tool ["openapi-drift check"]
+    ops["Read the<br/>operations"]
+    routes["Read the routes<br/>from the source"]
+    cmp["Compare<br/>both ways"]
+    filter["Apply ignore<br/>and baseline"]
+  end
+
+  report["Report<br/>text, Markdown,<br/>JSON"]
+  sarif["SARIF log for<br/>code scanning"]
+  gh["Annotations<br/>on lines,<br/>job summary"]
+  exit["Exit code<br/>fails CI on drift"]
+
+  spec --> ops
+  code --> routes
+  ops --> cmp
+  routes --> cmp
+  cmp -- drift --> filter
+  accepted --> filter
+  filter --> report
+  filter --> sarif
+  filter --> gh
+  filter --> exit
