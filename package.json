@@ -51,7 +51,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run format:check && npm test",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "diagrams": "npx -y @mermaid-js/mermaid-cli@latest -i docs/diagrams/overview.mmd -c docs/diagrams/mermaid.config.json -b transparent -t default -o docs/diagrams/overview-light.svg && npx -y @mermaid-js/mermaid-cli@latest -i docs/diagrams/overview.mmd -c docs/diagrams/mermaid.config.json -b transparent -t dark -o docs/diagrams/overview-dark.svg"
   },
   "dependencies": {
     "yaml": "^2.9.1"
