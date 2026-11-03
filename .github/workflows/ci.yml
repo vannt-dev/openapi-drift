@@ -44,3 +44,20 @@ jobs:
             if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Evq '^([^/]*\.md|docs/.*|LICENSE)$'; then code=false; fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+  result:
+    name: CI result
+    if: always()
+    needs:
+      - node
+      - commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "*|*" cancelled "*) exit 1 ;;
+          esac
