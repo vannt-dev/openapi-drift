@@ -567,26 +567,6 @@ src: 9 routes under /api
         </div>
       </header>
 
-      <pre><span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src --prefix /api
-openapi.yaml: 9 operations under /api
-src: 12 routes under /api
-
-<b>In the code, not in the document (5):</b>
-  <span class="miss">GET     /api/health</span> (src/health.controller.ts:5)
-  <span class="miss">HEAD    /api/health</span> (src/health.controller.ts:10)
-  <span class="miss">GET     /api/legacy/ping</span> (src/health.controller.ts:18)
-  <span class="miss">DELETE  /api/users/{id}</span> (src/users/users.controller.ts:27) — the path exists with GET, PATCH
-  <span class="miss">GET     /api/v0/ping</span> (src/health.controller.ts:18)
-
-<b>In the document, not in the code (2):</b>
-  <span class="extra">POST    /api/orders</span> (createOrder) — the path exists with GET
-  <span class="extra">GET     /api/users/{id}/avatar</span> (getAvatar)
-
-<b>Path parameters named differently (1, not a failure):</b>
-  GET     /api/orders/{id}/items: document {id}, code {orderId} (src/orders/orders.controller.ts:10)
-
-7 drifts.</pre>
-
       <section id="why">
         <h2 data-i18n="why.h2">Why</h2>
         <p class="sub" data-i18n="why.sub">
