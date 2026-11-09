@@ -12,50 +12,68 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M9 11h14M9 16h9M9 21h14' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg: #ffffff;
-        --fg: #111827;
-        --muted: #4b5563;
-        --line: #e5e7eb;
-        --accent: #2563eb;
-        --accent-fg: #ffffff;
+        --bg: #f7f8fc;
+        --fg: #0f172a;
+        --muted: #55607a;
+        --line: #dde2ee;
         --code-bg: #0f172a;
         --code-fg: #e2e8f0;
-        --card: #f9fafb;
+        --card: #ffffff;
+        --surface-2: #eef1f8;
+        --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
         --red: #dc2626;
         --amber: #b45309;
         --green: #15803d;
+        --accent: #2563eb;
+        --accent-2: #0d9488;
+        --accent-soft: #e8effd;
+        --accent-fg: #ffffff;
       }
       @media (prefers-color-scheme: dark) {
         :root:not([data-theme='light']) {
           --bg: #0b1020;
-          --fg: #e5e7eb;
-          --muted: #9ca3af;
-          --line: #1f2937;
-          --accent: #60a5fa;
-          --accent-fg: #0b1020;
-          --code-bg: #111827;
-          --code-fg: #e5e7eb;
-          --card: #111827;
+          --fg: #e7ecf6;
+          --muted: #9aa6c2;
+          --line: #26324d;
+          --code-bg: #070b16;
+          --code-fg: #dbe4f5;
+          --card: #121a2e;
+          --surface-2: #18223a;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
           --red: #f87171;
           --amber: #fbbf24;
           --green: #4ade80;
+          --accent: #60a5fa;
+          --accent-2: #2dd4bf;
+          --accent-soft: #13213f;
+          --accent-fg: #0b1020;
         }
       }
       :root[data-theme='dark'] {
         --bg: #0b1020;
-        --fg: #e5e7eb;
-        --muted: #9ca3af;
-        --line: #1f2937;
-        --accent: #60a5fa;
-        --accent-fg: #0b1020;
-        --code-bg: #111827;
-        --code-fg: #e5e7eb;
-        --card: #111827;
+        --fg: #e7ecf6;
+        --muted: #9aa6c2;
+        --line: #26324d;
+        --code-bg: #070b16;
+        --code-fg: #dbe4f5;
+        --card: #121a2e;
+        --surface-2: #18223a;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
         --red: #f87171;
         --amber: #fbbf24;
         --green: #4ade80;
+        --accent: #60a5fa;
+        --accent-2: #2dd4bf;
+        --accent-soft: #13213f;
+        --accent-fg: #0b1020;
       }
       * {
         box-sizing: border-box;
@@ -231,57 +249,323 @@
       footer a {
         color: var(--fg);
       }
+      /* The look of the aiws-factory page (palette, type, cards) with a hero like junto's: a terminal
+         of real output beside the text. Each tool keeps its own accent. */
+      body {
+        font:
+          16px/1.65 'Be Vietnam Pro',
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      pre,
+      code {
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: block;
+        padding: 0;
+        backdrop-filter: saturate(160%) blur(10px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar .wrap {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-height: 60px;
+        flex-wrap: wrap;
+      }
+      .topbar .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+        color: var(--fg);
+        text-decoration: none;
+      }
+      .logo {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--accent);
+        display: grid;
+        place-items: center;
+      }
+      .navlinks {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-left: auto;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .navlinks a {
+        color: var(--muted);
+        text-decoration: none;
+        margin: 0;
+      }
+      .navlinks a:hover {
+        color: var(--fg);
+      }
+      .lang-select {
+        font: 600 13px inherit;
+        color: var(--fg);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 8px;
+      }
+      @media (max-width: 720px) {
+        .navlinks a.sec {
+          display: none;
+        }
+      }
+      header.hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        gap: 48px;
+        align-items: center;
+        padding: 72px 0 48px;
+      }
+      @media (max-width: 860px) {
+        header.hero {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 36px;
+          padding-top: 44px;
+        }
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 18px;
+        padding: 6px 12px;
+        font:
+          600 11.5px/1.2 'JetBrains Mono',
+          monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+        border-radius: 999px;
+      }
+      .pulse {
+        width: 7px;
+        height: 7px;
+        flex: none;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+      }
+      h1 {
+        font-size: clamp(34px, 5.4vw, 56px);
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+        margin: 0 0 18px;
+      }
+      h1 .grad {
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      h2 {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        font-size: clamp(17px, 2vw, 19px);
+      }
+      .btn {
+        border-radius: 10px;
+        padding: 12px 20px;
+        font-weight: 600;
+        background: var(--card);
+      }
+      .btn.primary {
+        background: var(--accent);
+      }
+      .btn:hover {
+        border-color: var(--accent);
+      }
+      .trust {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        margin: 22px 0 0;
+        padding: 0;
+        list-style: none;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .trust li::before {
+        content: '·';
+        margin-right: 8px;
+        color: var(--accent);
+        font-weight: 800;
+      }
+      .hero-term {
+        position: relative;
+      }
+      .hero-term::before {
+        content: '';
+        position: absolute;
+        inset: 12% -4% -8% 8%;
+        z-index: 0;
+        background: color-mix(in srgb, var(--accent) 30%, transparent);
+        filter: blur(52px);
+        opacity: 0.55;
+      }
+      .term {
+        position: relative;
+        z-index: 1;
+        overflow: hidden;
+        transform: rotate(1deg);
+        background: var(--code-bg);
+        color: var(--code-fg);
+        border-radius: 14px;
+        border: 1px solid color-mix(in srgb, var(--code-fg) 14%, transparent);
+        box-shadow: 0 28px 60px rgba(15, 23, 42, 0.25);
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 12px 16px;
+        border-bottom: 1px solid color-mix(in srgb, var(--code-fg) 12%, transparent);
+      }
+      .term-bar span {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--code-fg) 28%, transparent);
+      }
+      .term-bar code {
+        margin-left: auto;
+        font-size: 12px;
+        color: color-mix(in srgb, var(--code-fg) 60%, transparent);
+      }
+      .term pre {
+        background: transparent;
+        border-radius: 0;
+        padding: 18px 20px 22px;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .term .p {
+        color: color-mix(in srgb, var(--accent) 45%, #ffffff);
+      }
+      .term .ok {
+        color: color-mix(in srgb, var(--accent) 30%, #ffffff);
+        font-weight: 600;
+      }
+      @media (max-width: 860px) {
+        .term {
+          transform: none;
+        }
+      }
+      .card {
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+      }
+      pre {
+        border-radius: 12px;
+      }
+      .wrap {
+        max-width: 1080px;
+      }
+      /* break a long command only when it cannot fit a line of its own */
+      p code,
+      li code,
+      td code,
+      figcaption code {
+        overflow-wrap: break-word;
+      }
+      /* the code background is dark in both themes: the light red and amber read on it */
+      pre .miss {
+        color: #f87171;
+      }
+      pre .extra {
+        color: #fbbf24;
+      }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <nav>
-        <p class="brand">openapi-drift</p>
-        <div>
-          <a href="#how" data-i18n="nav.how">How it works</a>
-          <a href="#action" data-i18n="nav.action">GitHub Action</a>
-          <a href="https://github.com/vannt-dev/openapi-drift">GitHub</a>
-          <a href="https://www.npmjs.com/package/openapi-drift">npm</a>
-          <select id="lang" aria-label="Language">
+    <nav class="topbar" aria-label="Main">
+      <div class="wrap">
+        <a class="brand" href="#top">
+          <span class="logo" aria-hidden="true"
+            ><svg width="18" height="18" viewBox="0 0 32 32">
+              <path d="M9 11h14M9 16h9M9 21h14" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" /></svg
+          ></span>
+          openapi-drift
+        </a>
+        <div class="navlinks">
+          <a class="sec" href="#how" data-i18n="nav.how">How it works</a>
+          <a class="sec" href="#action" data-i18n="nav.action">GitHub Action</a>
+          <a href="https://github.com/vannt-dev/openapi-drift">GitHub ↗</a>
+          <a href="https://www.npmjs.com/package/openapi-drift">npm ↗</a>
+          <select id="lang" class="lang-select" aria-label="Language">
             <option value="en">English</option>
             <option value="vi">Tiếng Việt</option>
           </select>
         </div>
-      </nav>
-
-      <header>
-        <h1 data-i18n="hero.h1">Your OpenAPI document, checked against the source code.</h1>
-        <p class="lead" data-i18n="hero.lead">
-          openapi-drift reads the routes your NestJS, Express, Fastify, Hono or Spring code declares straight from the source files,
-          compares them with the document, and fails the build when they disagree, in either direction. No running server, no network, no
-          AI, no build of your project: it runs in CI or as a GitHub Action on the pull request.
-        </p>
-        <div class="cta">
-          <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
-          <a class="btn" href="https://github.com/vannt-dev/openapi-drift#readme" data-i18n="cta.docs">Documentation</a>
-          <a class="btn" href="https://github.com/vannt-dev/openapi-drift/blob/main/README.vi.md">Tiếng Việt</a>
+      </div>
+    </nav>
+    <div class="wrap" id="top">
+      <header class="hero">
+        <div>
+          <p class="eyebrow"><span class="pulse" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Drift check for OpenAPI</span></p>
+          <h1 data-i18n="hero.h1">Your OpenAPI document, checked against <span class="grad">the source code</span>.</h1>
+          <p class="lead" data-i18n="hero.lead">
+            openapi-drift reads the routes your NestJS, Express, Fastify, Hono or Spring code declares straight from the source files,
+            compares them with the document, and fails the build when they disagree, in either direction. No running server, no network, no
+            AI, no build of your project: it runs in CI or as a GitHub Action on the pull request.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
+            <a class="btn" href="https://github.com/vannt-dev/openapi-drift#readme" data-i18n="cta.docs">Documentation</a>
+            <a class="btn" href="https://github.com/vannt-dev/openapi-drift/blob/main/README.vi.md">Tiếng Việt</a>
+          </div>
+          <ul class="trust">
+            <li data-i18n="hero.t1">Without running the API</li>
+            <li data-i18n="hero.t2">No AI, no network</li>
+            <li>MIT</li>
+          </ul>
         </div>
-      </header>
+        <div class="hero-term" aria-label="Output of a real check on the demo repository">
+          <div class="term">
+            <div class="term-bar"><span></span><span></span><span></span><code>openapi-drift-demo</code></div>
+            <pre><span class="p">$</span> openapi-drift check --spec openapi.yaml --source src --prefix /api
+openapi.yaml: 10 operations under /api
+src: 9 routes under /api
 
-      <pre><span class="dim">$</span> openapi-drift check --spec openapi.yaml --source src --prefix /api
-openapi.yaml: 9 operations under /api
-src: 12 routes under /api
+<b>In the code, not in the document (2):</b>
+  <span class="miss">GET     /api/health</span> (src/health.controller.ts:6)
+  <span class="miss">DELETE  /api/users/{id}</span> (src/users/users.controller.ts:26) — the path exists with GET, PATCH
 
-<b>In the code, not in the document (5):</b>
-  <span class="miss">GET     /api/health</span> (src/health.controller.ts:5)
-  <span class="miss">HEAD    /api/health</span> (src/health.controller.ts:10)
-  <span class="miss">GET     /api/legacy/ping</span> (src/health.controller.ts:18)
-  <span class="miss">DELETE  /api/users/{id}</span> (src/users/users.controller.ts:27) — the path exists with GET, PATCH
-  <span class="miss">GET     /api/v0/ping</span> (src/health.controller.ts:18)
-
-<b>In the document, not in the code (2):</b>
+<b>In the document, not in the code (3):</b>
   <span class="extra">POST    /api/orders</span> (createOrder) — the path exists with GET
+  <span class="extra">PATCH   /api/orders/{orderId}</span> (updateOrder) — the path exists with PUT
   <span class="extra">GET     /api/users/{id}/avatar</span> (getAvatar)
 
 <b>Path parameters named differently (1, not a failure):</b>
-  GET     /api/orders/{id}/items: document {id}, code {orderId} (src/orders/orders.controller.ts:10)
+  GET     /api/orders/{id}/items: document {id}, code {orderId} (src/orders/orders.controller.ts:11)
 
-7 drifts.</pre>
+5 drifts.</pre>
+          </div>
+        </div>
+      </header>
 
       <section id="why">
         <h2 data-i18n="why.h2">Why</h2>
@@ -411,7 +695,10 @@ src: 12 routes under /api
         vi: {
           'nav.how': 'Cách hoạt động',
           'nav.action': 'GitHub Action',
-          'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với mã nguồn.',
+          'hero.eyebrow': 'Kiểm tra độ lệch cho OpenAPI',
+          'hero.h1': 'Tài liệu OpenAPI của bạn, đối chiếu với <span class="grad">mã nguồn</span>.',
+          'hero.t1': 'Không cần chạy API',
+          'hero.t2': 'Không AI, không mạng',
           'hero.lead':
             'openapi-drift đọc các route mà code NestJS, Express, Fastify, Hono hoặc Spring của bạn khai báo, ngay từ file nguồn, so với tài liệu, và làm build fail khi hai bên lệch nhau, theo cả hai chiều. Không cần chạy server, không mạng, không AI, không cần build dự án: chạy trong CI hoặc bằng GitHub Action trên pull request.',
           'cta.start': 'Bắt đầu',
