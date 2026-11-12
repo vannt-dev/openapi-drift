@@ -48,7 +48,8 @@ function inlineSplit(doc: OpenApiDocument, main: string): void {
   const follow = (node: unknown, file: string, seen = new Set<string>()): { value: unknown; file: string } => {
     if (!node || typeof node !== 'object' || typeof (node as { $ref?: unknown }).$ref !== 'string') return { value: node, file };
     const ref = (node as { $ref: string }).$ref;
-    if (/^[a-z][a-z0-9+.-]*:/i.test(ref)) return { value: node, file }; // a URL is not fetched
+    // a URL is not fetched; a drive letter (`C:/specs/x.yaml`) is a file on Windows
+    if (/^[a-z][a-z0-9+.-]*:/i.test(ref) && !/^[a-z]:[\\/]/i.test(ref)) return { value: node, file };
     const hash = ref.indexOf('#');
     const target = hash < 0 ? ref : ref.slice(0, hash);
     const pointer = hash < 0 ? '' : ref.slice(hash + 1);
@@ -174,13 +175,14 @@ function refs(node: unknown, out: string[] = []): string[] {
 
 /**
  * The path part of the first server URL (`https://api.example.com/v1` -> `/v1`, `/api` -> `/api`), '' when there
- * is none or it is `/`. Server variables (`{basePath}`) are left as written.
+ * is none or it is `/`. The host is dropped also when the scheme is a variable (`{scheme}://host/v1`) or left out
+ * (`//host/v1`). Server variables (`{basePath}`) are left as written.
  */
 export function basePath(doc: OpenApiDocument): string {
   const url = doc.servers?.[0]?.url;
   if (typeof url !== 'string' || !url.trim()) return '';
   let p = url.trim();
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p)) {
+  if (/^(?:[a-z][a-z0-9+.-]*:|\{[^/{}]*\}:)?\/\//i.test(p)) {
     const i = p.indexOf('/', p.indexOf('//') + 2);
     p = i < 0 ? '' : p.slice(i);
   }
