@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.5.1](https://github.com/vannt-dev/openapi-drift/compare/v0.5.0...v0.5.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **openapi:** read the base path of templated and protocol-relative servers ([#29](https://github.com/vannt-dev/openapi-drift/issues/29)) ([4f6c111](https://github.com/vannt-dev/openapi-drift/commit/4f6c111760c33378d7bdce3db59b2f6da13e25be))
+
 ## [0.5.0](https://github.com/vannt-dev/openapi-drift/compare/v0.4.0...v0.5.0) (2026-10-31)
 
 
