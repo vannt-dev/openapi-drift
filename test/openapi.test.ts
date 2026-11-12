@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { basePath, joinPath, lintOpenApi, loadSpec, normalizePath, operations, pathParams } from '../src/openapi.ts';
-import { fixture } from './helpers.ts';
+import { fixture, tempDir } from './helpers.ts';
 
 test('loadSpec reads YAML and JSON, and names the file in its errors', () => {
   assert.equal(loadSpec(fixture('nestjs', 'openapi.yaml')).openapi, '3.0.3');
@@ -30,6 +32,14 @@ test('basePath comes from the first server URL', () => {
   assert.equal(basePath({ servers: [{ url: 'https://api.example.com' }] }), '');
   assert.equal(basePath({ servers: [{ url: '/' }] }), '');
   assert.equal(basePath({}), '');
+});
+
+test('basePath reads the path of a templated or protocol-relative server URL', () => {
+  assert.equal(basePath({ servers: [{ url: '{scheme}://api.example.com/v1' }] }), '/v1');
+  assert.equal(basePath({ servers: [{ url: '//api.example.com/v1/' }] }), '/v1');
+  assert.equal(basePath({ servers: [{ url: '//api.example.com' }] }), '');
+  assert.equal(basePath({ servers: [{ url: 'https://{host}/{basePath}' }] }), '/{basePath}');
+  assert.equal(basePath({ servers: [{ url: '{basePath}' }] }), '/{basePath}');
 });
 
 test('operations, pathParams, normalizePath and joinPath', () => {
@@ -63,4 +73,20 @@ test('a split document names the reference that cannot be followed', () => {
     /missing\.yaml: \$ref '\.\/paths\/nope\.yaml': .*nope\.yaml: cannot read/
   );
   assert.throws(() => loadSpec(fixture('split-bad', 'loop.yaml')), /loop\.yaml: \$ref '\.\/loop\.yaml#\/x' refers back to itself/);
+});
+
+test('a $ref with a Windows drive letter is a file, not a URL', () => {
+  const file = path.join(tempDir(), 'openapi.yaml');
+  const spec = (ref: string): string =>
+    ['openapi: 3.0.3', "info: { title: t, version: '1' }", 'paths:', '  /users:', `    $ref: '${ref}'`, ''].join('\n');
+  writeFileSync(file, spec('Z:/no-such-dir/users.yaml'));
+  assert.throws(() => loadSpec(file), /\$ref 'Z:\/no-such-dir\/users\.yaml': .*cannot read/);
+  writeFileSync(file, spec('Z:\\no-such-dir\\users.yaml'));
+  assert.throws(() => loadSpec(file), /\$ref 'Z:\\no-such-dir\\users\.yaml': .*cannot read/);
+  // an absolute path: `C:/...` on Windows
+  writeFileSync(file, spec(fixture('split', 'paths', 'users.yaml').replaceAll('\\', '/')));
+  assert.deepEqual(
+    operations(loadSpec(file)).map((op) => `${op.method} ${op.path}`),
+    ['get /users', 'post /users']
+  );
 });
