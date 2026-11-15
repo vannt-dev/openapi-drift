@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.6.0](https://github.com/vannt-dev/openapi-drift/compare/v0.5.1...v0.6.0) (2026-11-15)
+
+
+### Features
+
+* **openapi:** accept Swagger 2.0 documents ([#32](https://github.com/vannt-dev/openapi-drift/issues/32)) ([c958aaa](https://github.com/vannt-dev/openapi-drift/commit/c958aaaf51b103fb988c136bde954be3a731c512))
+
 ## [0.5.1](https://github.com/vannt-dev/openapi-drift/compare/v0.5.0...v0.5.1) (2026-11-12)
 
 
