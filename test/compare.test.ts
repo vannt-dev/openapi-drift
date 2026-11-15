@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compare, hasDrift } from '../src/compare.ts';
-import { loadSpec } from '../src/openapi.ts';
+import { lintOpenApi, loadSpec } from '../src/openapi.ts';
 import { extractNestRoutes } from '../src/extract/nestjs.ts';
 import { extractExpressRoutes } from '../src/extract/express.ts';
 import { markdownReport, textReport, jsonReport } from '../src/report.ts';
@@ -96,4 +96,15 @@ test('reports: text, markdown tables and JSON with relative paths', () => {
   const json = JSON.parse(jsonReport(result, ctx)) as { counts: unknown; missingInSpec: { file: string }[] };
   assert.deepEqual(json.counts, { spec: 9, code: 12 });
   assert.equal(json.missingInSpec[0]?.file, 'src/health.controller.ts');
+});
+
+test('a Swagger 2.0 document, YAML or JSON, drifts as its OpenAPI 3 form does', () => {
+  const routes = extractNestRoutes(fixture('nestjs', 'src'), { prefix: '/api' });
+  const expected = compare(loadSpec(fixture('nestjs', 'openapi.yaml')), routes, { prefix: '/api' });
+  for (const file of ['swagger.yaml', 'swagger.json']) {
+    const doc = loadSpec(fixture('nestjs', file));
+    assert.equal(doc.swagger, '2.0');
+    assert.deepEqual(lintOpenApi(doc), [], file);
+    assert.deepEqual(compare(doc, routes, { prefix: '/api' }), expected, file);
+  }
 });

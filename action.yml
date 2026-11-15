@@ -7,7 +7,7 @@ branding:
 
 inputs:
   spec:
-    description: The OpenAPI 3 document (YAML or JSON).
+    description: The OpenAPI 3.x or Swagger 2.0 document (YAML or JSON).
     required: true
   source:
     description: The source tree of the backend.

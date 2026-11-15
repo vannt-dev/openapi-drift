@@ -22,7 +22,7 @@ import type {
  *
  * The last two compare only what the source shows of a handler; where it shows nothing, nothing is said.
  *
- * The document's paths are read under its first server's base path (`servers[0].url`), the code's routes under
+ * The document's paths are read under its base path (`servers[0].url`, or `basePath` in Swagger 2.0), the code's routes under
  * `prefix`; paths are compared with parameter names and case ignored.
  */
 export function compare(doc: OpenApiDocument, routes: Route[], { prefix = '' }: { prefix?: string } = {}): DriftResult {

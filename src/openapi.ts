@@ -4,7 +4,7 @@ import YAML, { LineCounter, isMap, isScalar } from 'yaml';
 import { METHODS, type OpenApiDocument, type Operation, type OperationObject, type Parameter, type PathItem } from './types.ts';
 
 /**
- * Reads an OpenAPI document, YAML or JSON. A document split into files (`/users: {$ref: ./paths/users.yaml}`) is
+ * Reads an OpenAPI 3.x or Swagger 2.0 document, YAML or JSON. A document split into files (`/users: {$ref: ./paths/users.yaml}`) is
  * read through them: path items and parameters kept in another file are put in place. Throws with the file name
  * when it cannot be read.
  */
@@ -102,22 +102,43 @@ function inlineSplit(doc: OpenApiDocument, main: string): void {
     }
     if (item !== given) (doc.paths as Record<string, PathItem>)[p] = item;
   }
-  const shared = doc.components?.parameters;
-  if (shared) for (const [name, given] of Object.entries(shared)) shared[name] = (params([given], main) as Parameter[])[0];
+  // OpenAPI 3 keeps the shared parameters under `components`, Swagger 2.0 at the top of the document
+  for (const shared of [doc.components?.parameters, doc.parameters]) {
+    if (!shared || typeof shared !== 'object' || Array.isArray(shared)) continue;
+    for (const [name, given] of Object.entries(shared)) shared[name] = (params([given], main) as Parameter[])[0];
+  }
 }
 
-/** Problems of an OpenAPI 3 document, as a person would list them; empty when it is sound. */
+/**
+ * What a document declares itself to be: `3.x` for `openapi: 3.0.3`, `2.0` for `swagger: "2.0"` (also written
+ * without the quotes, which YAML reads as the number 2), undefined for anything else.
+ */
+export function specVersion(doc: unknown): '3.x' | '2.0' | undefined {
+  if (!doc || typeof doc !== 'object') return undefined;
+  const d = doc as OpenApiDocument;
+  if (/^3\./.test(versionText(d.openapi))) return '3.x';
+  if (d.openapi === undefined && /^2(\.0)?$/.test(versionText(d.swagger))) return '2.0';
+  return undefined;
+}
+
+const versionText = (v: unknown): string => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
+
+/** Problems of an OpenAPI 3.x or Swagger 2.0 document, as a person would list them; empty when it is sound. */
 export function lintOpenApi(doc: unknown): string[] {
   const problems: string[] = [];
   if (!doc || typeof doc !== 'object') return ['not an object'];
   const d = doc as OpenApiDocument;
-  const declared = typeof d.openapi === 'string' ? d.openapi : typeof d.openapi === 'number' ? String(d.openapi) : '';
-  if (!/^3\./.test(declared)) problems.push("'openapi' must be a 3.x version");
+  if (!specVersion(d)) {
+    const found =
+      d.openapi !== undefined ? `openapi: ${versionText(d.openapi)}` : d.swagger !== undefined ? `swagger: ${versionText(d.swagger)}` : '';
+    problems.push(`not a supported version${found ? ` (${found})` : ''}: 'openapi' must be 3.x, or 'swagger' must be "2.0"`);
+  }
   if (!d.paths || typeof d.paths !== 'object') {
     problems.push("'paths' must be a map");
     return problems;
   }
   for (const [p, item] of Object.entries(d.paths)) {
+    if (p.startsWith('x-')) continue; // an extension, not a path
     if (!p.startsWith('/')) problems.push(`path '${p}' must start with /`);
     if (!item || typeof item !== 'object') {
       problems.push(`path '${p}' has no operations`);
@@ -136,7 +157,10 @@ export function lintOpenApi(doc: unknown): string[] {
       const o = op as OperationObject;
       const responses = o.responses;
       if (!responses || typeof responses !== 'object' || !Object.keys(responses).length) problems.push(`${where} has no responses`);
-      const params = [...(item.parameters ?? []), ...(o.parameters ?? [])].filter((x): x is Parameter => !!x && typeof x === 'object');
+      // a parameter kept under the shared ones (`$ref: '#/parameters/id'`) is declared as well
+      const params = [...(Array.isArray(item.parameters) ? item.parameters : []), ...(Array.isArray(o.parameters) ? o.parameters : [])]
+        .map((x) => parameter(d, x))
+        .filter((x): x is Parameter => !!x && typeof x === 'object');
       for (const name of templated) {
         const declared = params.find((x) => x.name === name && x.in === 'path');
         if (!declared)
@@ -174,15 +198,17 @@ function refs(node: unknown, out: string[] = []): string[] {
 }
 
 /**
- * The path part of the first server URL (`https://api.example.com/v1` -> `/v1`, `/api` -> `/api`), '' when there
- * is none or it is `/`. The host is dropped also when the scheme is a variable (`{scheme}://host/v1`) or left out
+ * The prefix a document puts in front of its paths, '' when there is none or it is `/`. For Swagger 2.0 it is
+ * `basePath` (`/api/` -> `/api`); `host` and `schemes` say where the API is, not what its routes are. For
+ * OpenAPI 3 it is the path part of the first server URL (`https://api.example.com/v1` -> `/v1`, `/api` -> `/api`). The host is dropped also when the scheme is a variable (`{scheme}://host/v1`) or left out
  * (`//host/v1`). Server variables (`{basePath}`) are left as written.
  */
 export function basePath(doc: OpenApiDocument): string {
-  const url = doc.servers?.[0]?.url;
+  const swagger2 = specVersion(doc) === '2.0';
+  const url = swagger2 ? doc.basePath : doc.servers?.[0]?.url;
   if (typeof url !== 'string' || !url.trim()) return '';
   let p = url.trim();
-  if (/^(?:[a-z][a-z0-9+.-]*:|\{[^/{}]*\}:)?\/\//i.test(p)) {
+  if (!swagger2 && /^(?:[a-z][a-z0-9+.-]*:|\{[^/{}]*\}:)?\/\//i.test(p)) {
     const i = p.indexOf('/', p.indexOf('//') + 2);
     p = i < 0 ? '' : p.slice(i);
   }
@@ -217,7 +243,7 @@ export function operationLines(text: string): Map<string, number> {
 export function operations(doc: OpenApiDocument): Operation[] {
   const out: Operation[] = [];
   for (const [p, item] of Object.entries(doc.paths ?? {})) {
-    if (!item || typeof item !== 'object') continue;
+    if (!item || typeof item !== 'object' || p.startsWith('x-')) continue;
     for (const m of METHODS) {
       const op = item[m];
       if (!op) continue;
@@ -246,13 +272,14 @@ function queryParams(doc: OpenApiDocument, item: PathItem, op: OperationObject):
   return names;
 }
 
-/** A parameter, or the one of `components.parameters` it refers to. */
+/** A parameter, or the shared one it refers to: `#/components/parameters/x` (OpenAPI 3), `#/parameters/x` (Swagger 2.0). */
 function parameter(doc: OpenApiDocument, p: Parameter | undefined, depth = 0): Parameter | undefined {
   if (!p || typeof p !== 'object' || typeof p.$ref !== 'string') return p;
-  const m = /^#\/components\/parameters\/(.+)$/.exec(p.$ref);
+  const m = /^#\/(components\/)?parameters\/(.+)$/.exec(p.$ref);
   if (!m || depth > 8) return undefined;
-  const name = (m[1] as string).replace(/~1/g, '/').replace(/~0/g, '~');
-  return parameter(doc, doc.components?.parameters?.[name], depth + 1);
+  const name = (m[2] as string).replace(/~1/g, '/').replace(/~0/g, '~');
+  const shared = m[1] ? doc.components?.parameters : doc.parameters;
+  return parameter(doc, shared && typeof shared === 'object' ? shared[name] : undefined, depth + 1);
 }
 
 /** The names of the templated parameters of a path, in order: `/users/{id}/posts/{postId}` -> ['id', 'postId']. */

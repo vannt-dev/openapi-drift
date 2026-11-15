@@ -42,7 +42,7 @@ test('lint, routes, --version, --help and usage errors', () => {
   assert.equal(cli(['lint', '--spec', fixture('nestjs', 'openapi.yaml')]).status, 0);
   const bad = cli(['lint', '--spec', fixture('bad', 'openapi.yaml')]);
   assert.equal(bad.status, 1);
-  assert.match(bad.stdout, /6 problems\n {2}'openapi' must be a 3\.x version/);
+  assert.match(bad.stdout, /6 problems\n {2}not a supported version \(openapi: 2\): 'openapi' must be 3\.x, or 'swagger' must be "2\.0"/);
 
   const routes = cli(['routes', '--source', 'src'], fixture('express'));
   assert.equal(routes.status, 0);
@@ -134,4 +134,33 @@ test('check: --update-baseline records the drift, --baseline accepts it and fail
   const bad = cli([...base, '--baseline', file], cwd);
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /expected \{"version": 1, "missingInSpec": \[\.\.\.\], "missingInCode": \[\.\.\.\]\}/);
+});
+
+test('check: a Swagger 2.0 document, YAML or JSON, gives the report of its OpenAPI 3 form', () => {
+  const run = (spec: string): string => {
+    const r = cli(['check', '--spec', spec, '--source', 'src', '--prefix', '/api', '--format', 'json'], fixture('nestjs'));
+    assert.equal(r.status, 1, r.stderr);
+    // the report names the document it was given; the rest must be the same
+    return r.stdout.replace(`"spec": "${spec}"`, '"spec": ""');
+  };
+  const expected = run('openapi.yaml');
+  assert.equal(run('swagger.yaml'), expected);
+  assert.equal(run('swagger.json'), expected);
+  assert.equal(cli(['lint', '--spec', fixture('nestjs', 'swagger.yaml')]).status, 0);
+
+  const text = cli(['check', '--spec', 'swagger.yaml', '--source', 'src', '--prefix', '/api'], fixture('nestjs'));
+  assert.match(text.stdout, /^swagger\.yaml: 9 operations under \/api\n/);
+});
+
+test('check: a document of another version exits 2 and names the versions that are read', () => {
+  const dir = tempDir();
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.writeFileSync(
+    path.join(dir, 'old.yaml'),
+    "swagger: '1.2'\npaths:\n  /ping:\n    get:\n      responses:\n        '200': {description: ok}\n"
+  );
+  const r = cli(['check', '--spec', 'old.yaml', '--source', 'src'], dir);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /old\.yaml: 1 problem; fix the document first/);
+  assert.match(r.stderr, /not a supported version \(swagger: 1\.2\): 'openapi' must be 3\.x, or 'swagger' must be "2\.0"/);
 });

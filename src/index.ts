@@ -1,4 +1,14 @@
-export { loadSpec, lintOpenApi, operations, operationLines, basePath, normalizePath, pathParams, joinPath } from './openapi.ts';
+export {
+  loadSpec,
+  lintOpenApi,
+  specVersion,
+  operations,
+  operationLines,
+  basePath,
+  normalizePath,
+  pathParams,
+  joinPath,
+} from './openapi.ts';
 export { extractNestRoutes, readNestApp } from './extract/nestjs.ts';
 export { extractExpressRoutes } from './extract/express.ts';
 export { extractFastifyRoutes } from './extract/fastify.ts';
