@@ -172,12 +172,17 @@ export interface ReportContext {
   version?: string;
 }
 
-/** An OpenAPI document as parsed; only what this tool reads is typed. */
+/** An OpenAPI 3.x or Swagger 2.0 document as parsed; only what this tool reads is typed. */
 export interface OpenApiDocument {
   openapi?: unknown;
+  /** Swagger 2.0 declares itself here (`swagger: "2.0"`) and keeps its prefix in `basePath`. */
+  swagger?: unknown;
+  basePath?: unknown;
   servers?: { url?: unknown }[];
   paths?: Record<string, PathItem | undefined>;
   components?: { parameters?: Record<string, Parameter | undefined> };
+  /** Swagger 2.0: the shared parameters (`#/parameters/limit`). */
+  parameters?: Record<string, Parameter | undefined>;
   [key: string]: unknown;
 }
 

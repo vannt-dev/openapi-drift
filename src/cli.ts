@@ -26,14 +26,15 @@ usage:
   openapi-drift lint --spec <openapi.yaml>
 
 options:
-  --spec <file>          the OpenAPI 3 document (YAML or JSON)
+  --spec <file>          the OpenAPI 3.x or Swagger 2.0 document (YAML or JSON)
   --source <dir>         the source tree of the backend (default: .)
   --framework <name>     ${FRAMEWORKS.join(', ')} or auto (default: auto)
   --prefix <path>        a prefix the code adds to every route and the source does not show (an Express
                          mount built dynamically, a NestJS prefix from the configuration). For NestJS it
                          is not needed otherwise: setGlobalPrefix and URI versioning are read from the
                          code. Given, it replaces what the code says (/ for no prefix at all). The
-                         document's own base path (servers[0].url) is read by itself
+                         document's own base path (servers[0].url, or basePath in
+                         Swagger 2.0) is read by itself
   --format <name>        ${FORMATS.join(', ')} (default: text); sarif is a SARIF 2.1.0 log for
                          code scanning, github is workflow commands that annotate the lines on GitHub
   --output <file>        write the report there as well as to stdout
