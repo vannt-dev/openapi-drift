@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { joinPath } from './openapi.ts';
-import type { AppSettings, DriftResult, HttpMethod, MissingInCode, MissingInSpec, ReportContext } from './types.ts';
+import { belowCoverage } from './compare.ts';
+import type { AppSettings, Coverage, DriftResult, HttpMethod, MissingInCode, MissingInSpec, ReportContext } from './types.ts';
 
 const rel = (file: string, root: string): string => path.relative(root, file).replace(/\\/g, '/');
 const where = (x: { file?: string; line?: number }, root: string): string => (x.file ? ` (${rel(x.file, root)}:${x.line})` : '');
@@ -27,6 +28,36 @@ export function readFromCode(app: AppSettings | undefined, root: string, code: (
   return parts.join('; ');
 }
 
+/**
+ * The coverage as one line: `7 of 9 operations have a handler (77.7%); status codes: ...`. `code` wraps what is
+ * code and `strong` what needs to stand out (Markdown backticks and bold).
+ */
+export function coverageLine(c: Coverage, code: (s: string) => string = (s) => s, strong: (s: string) => string = (s) => s): string {
+  const ops = c.operations;
+  const have = ops.documented === 1 ? 'has' : 'have';
+  let line = `${ops.handled} of ${plural(ops.documented, 'operation')} ${have} a handler (${strong(`${ops.percent}%`)})`;
+  if (c.ignored) line += `, ${c.ignored} left out by the ignore patterns`;
+  if (c.statuses) {
+    const s = c.statuses;
+    line +=
+      `; status codes: ${s.answered} of ${s.documented} described ${s.answered === 1 ? 'is' : 'are'} answered (${s.percent}%) ` +
+      `by the ${s.operations === 1 ? 'handler that shows its' : `${s.operations} handlers that show their`} statuses`;
+  }
+  if (c.min !== undefined) line += `; ${code(`--min-coverage ${c.min}`)} ${belowCoverage(c, c.min) ? strong('not met') : 'met'}`;
+  return line;
+}
+
+/** The line that says a coverage below `--min-coverage` fails the run; empty when it does not. */
+function coverageFailure(c: Coverage | undefined, code: (s: string) => string = (s) => s): string {
+  if (c?.min === undefined || !belowCoverage(c, c.min)) return '';
+  return `Coverage ${c.operations.percent}% is below ${code(`--min-coverage ${c.min}`)}: the run fails.`;
+}
+
+/** The coverage for JSON, with whether the threshold is met when there is one. */
+function coverageJson(c: Coverage): Coverage & { met?: boolean } {
+  return c.min === undefined ? c : { ...c, met: !belowCoverage(c, c.min) };
+}
+
 const IN_CODE = 'in the code, not in the document';
 const IN_SPEC = 'in the document, not in the code';
 
@@ -49,6 +80,7 @@ export function textReport(result: DriftResult, { spec, source, root, app, stric
   lines.push(`${spec}: ${plural(result.counts.spec, 'operation')}${result.base ? ` under ${result.base}` : ''}`);
   lines.push(`${source}: ${plural(result.counts.code, 'route')}${result.prefix ? ` under ${result.prefix}` : ''}`);
   if (read) lines.push(`  read from the code: ${read}`);
+  if (result.coverage) lines.push(`Coverage: ${coverageLine(result.coverage)}`);
   if (result.missingInSpec.length) {
     lines.push('', `In the code, not in the document (${result.missingInSpec.length}):`);
     for (const r of result.missingInSpec) lines.push(`  ${verb(r.method)} ${r.path}${where(r, root)}${r.hint ? ` — ${r.hint}` : ''}`);
@@ -102,6 +134,8 @@ export function textReport(result: DriftResult, { spec, source, root, app, stric
   else if (details) lines.push('No drift in the routes; what differs is in what the operations take and answer.');
   else lines.push('No drift: the document and the code agree.');
   if (strict && details) lines.push(`${plural(details, 'difference')} fail${details === 1 ? 's' : ''} the run (--strict).`);
+  const short = coverageFailure(result.coverage);
+  if (short) lines.push(short);
   return lines.join('\n') + '\n';
 }
 
@@ -121,6 +155,15 @@ export function markdownReport(result: DriftResult, { spec, source, root, app, s
   );
   const read = readFromCode(app, root, (s) => `\`${s}\``);
   if (read) lines.push(`Read from the code: ${read}`, '');
+  if (result.coverage)
+    lines.push(
+      `**Coverage**: ${coverageLine(
+        result.coverage,
+        (s) => `\`${s}\``,
+        (s) => `**${s}**`
+      )}`,
+      ''
+    );
   const table = (title: string, rows: string[][], cols: string[]): void => {
     if (!rows.length) return;
     lines.push(`### ${title} (${rows.length})`, '', `| ${cols.join(' | ')} |`, `| ${cols.map(() => '---').join(' | ')} |`);
@@ -172,6 +215,8 @@ export function markdownReport(result: DriftResult, { spec, source, root, app, s
   if (ignored) lines.push(`Left out by the ignore patterns: ${ignored}.`, '');
   if (!total && !result.paramMismatch.length && !accepted && !details) lines.push('The document and the code agree.', '');
   if (strict && details) lines.push(`${plural(details, 'difference')} fail${details === 1 ? 's' : ''} the run (\`--strict\`).`, '');
+  const short = coverageFailure(result.coverage, (s) => `\`${s}\``);
+  if (short) lines.push(short, '');
   return lines.join('\n');
 }
 
@@ -200,6 +245,7 @@ export function jsonReport(result: DriftResult, { spec, source, root, app }: Rep
           }
         : {}),
       ...(result.resolved ? { resolved: result.resolved } : {}),
+      ...(result.coverage ? { coverage: coverageJson(result.coverage) } : {}),
     },
     null,
     2

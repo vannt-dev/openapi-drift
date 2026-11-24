@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadSpec, lintOpenApi, operationLines } from './openapi.ts';
 import { extractRoutes } from './extract/index.ts';
-import { compare, hasDrift } from './compare.ts';
+import { belowCoverage, compare, coverage, hasDrift } from './compare.ts';
 import { applyBaseline, applyIgnore, baselineOf, loadBaseline, readIgnoreFile } from './filter.ts';
 import { textReport, markdownReport, jsonReport, sarifReport, githubReport, readFromCode, appJson } from './report.ts';
 import {
@@ -47,11 +47,26 @@ options:
   --update-baseline      write the drift of this run to the --baseline file and exit 0
   --strict               query parameters and status codes that differ between an operation and its
                          handler are always reported; with this they fail the run as well
+  --coverage             report the share of the document's operations that have a handler, and of the
+                         status codes they describe that handlers answer, where handlers show them
+  --min-coverage <pct>   exit 1 when less than this percent of the operations have a handler, whatever
+                         --fail-on says (implies --coverage)
   --version, --help
 
-exit codes: 0 no drift (or --fail-on none), 1 drift, 2 bad usage or an unreadable document`;
+exit codes: 0 no drift (or --fail-on none), 1 drift or coverage below --min-coverage, 2 bad usage or an unreadable document`;
 
-const VALUE_FLAGS = ['spec', 'source', 'framework', 'prefix', 'format', 'output', 'fail-on', 'ignore-file', 'baseline'] as const;
+const VALUE_FLAGS = [
+  'spec',
+  'source',
+  'framework',
+  'prefix',
+  'format',
+  'output',
+  'fail-on',
+  'ignore-file',
+  'baseline',
+  'min-coverage',
+] as const;
 type ValueFlag = (typeof VALUE_FLAGS)[number];
 
 export interface Options extends Partial<Record<ValueFlag, string>> {
@@ -60,6 +75,7 @@ export interface Options extends Partial<Record<ValueFlag, string>> {
   ignore?: string[];
   'update-baseline'?: boolean;
   strict?: boolean;
+  coverage?: boolean;
   help?: boolean;
   version?: boolean;
 }
@@ -82,6 +98,7 @@ export function parseArgs(argv: string[]): Options {
       (opts.ignore ??= []).push(v);
     } else if (a === '--update-baseline') opts['update-baseline'] = true;
     else if (a === '--strict') opts.strict = true;
+    else if (a === '--coverage') opts.coverage = true;
     else if (a.startsWith('--') && isValueFlag(a.slice(2))) {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) throw new Error(`${a} needs a value`);
@@ -203,6 +220,15 @@ function routes(opts: Options, io: Io): number {
   return 0;
 }
 
+/** `--min-coverage 80` or `80%`: a percentage from 0 to 100. */
+function minCoverage(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const m = /^(\d+(?:\.\d+)?)%?$/.exec(value.trim());
+  const n = m ? Number(m[1]) : NaN;
+  if (!(n >= 0 && n <= 100)) throw new Error(`--min-coverage ${value}: a percentage from 0 to 100`);
+  return n;
+}
+
 function check(opts: Options, io: Io): number {
   const { file, doc, problems } = needSpec(opts);
   if (problems.length) {
@@ -215,6 +241,7 @@ function check(opts: Options, io: Io): number {
   const format = oneOf<Format>('format', opts.format, FORMATS, 'text');
   const failOn = oneOf<FailOn>('fail-on', opts['fail-on'], FAIL_ON, 'any');
   const framework = oneOf<Framework | 'auto'>('framework', opts.framework, [...FRAMEWORKS, 'auto'], 'auto');
+  const min = minCoverage(opts['min-coverage']);
 
   const found = extractRoutes(source, { framework, prefix: opts.prefix ?? '' });
   say(found.app, io);
@@ -237,6 +264,9 @@ function check(opts: Options, io: Io): number {
     return 0;
   }
   const result = applyIgnore(opts.baseline ? applyBaseline(compared, loadBaseline(opts.baseline)) : compared, ignore);
+  if (opts.coverage || min !== undefined) {
+    result.coverage = { ...coverage(doc, found.routes, { ignore }), ...(min !== undefined ? { min } : {}) };
+  }
   const strict = opts.strict === true;
   const ctx: ReportContext = { spec: file, source, root: process.cwd(), strict, failOn, ...(found.app ? { app: found.app } : {}) };
   if (format === 'sarif' || format === 'github') {
@@ -255,5 +285,6 @@ function check(opts: Options, io: Io): number {
     fs.mkdirSync(path.dirname(path.resolve(opts.output)), { recursive: true });
     fs.writeFileSync(opts.output, report);
   }
-  return hasDrift(result, failOn, { strict }) ? 1 : 0;
+  const short = result.coverage?.min !== undefined && belowCoverage(result.coverage, result.coverage.min);
+  return hasDrift(result, failOn, { strict }) || short ? 1 : 0;
 }

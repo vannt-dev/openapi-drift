@@ -58,6 +58,7 @@ openapi-drift routes --source src                                # chỉ liệt 
 openapi-drift lint --spec openapi.yaml                           # lỗi của chính tài liệu
 openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore 'GET /internal/**'
 openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json   # chỉ fail khi có lệch mới
+openapi-drift check --spec openapi.yaml --source src --min-coverage 90   # fail khi dưới 90% operation được phục vụ
 ```
 
 | Tuỳ chọn               | Ý nghĩa                                                                                                                                                                                                                                                                                                                                                                           |
@@ -74,8 +75,10 @@ openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.js
 | `--baseline <file>`    | Lệch đã biết và đã chấp nhận: vẫn được báo cáo nhưng không làm fail.                                                                                                                                                                                                                                                                                                              |
 | `--update-baseline`    | Ghi lệch của lần chạy này vào file `--baseline` rồi thoát với mã `0`.                                                                                                                                                                                                                                                                                                             |
 | `--strict`             | Query parameter và mã trạng thái khác nhau luôn được báo cáo; thêm cờ này thì chúng cũng làm lần chạy thất bại.                                                                                                                                                                                                                                                                   |
+| `--coverage`           | Báo cáo code phục vụ được bao nhiêu phần của tài liệu: tỉ lệ operation có handler, và tỉ lệ mã trạng thái được mô tả mà handler trả về (xem [Độ phủ](#độ-phủ)).                                                                                                                                                                                                                   |
+| `--min-coverage <pct>` | Thoát với mã `1` khi tỉ lệ operation của tài liệu có handler thấp hơn số phần trăm này (`80` hoặc `80%`), bất kể `--fail-on`. Bao gồm luôn `--coverage`.                                                                                                                                                                                                                          |
 
-Mã thoát: `0` không lệch, `1` có lệch, `2` dùng sai hoặc tài liệu có lỗi (`lint` liệt kê trước).
+Mã thoát: `0` không lệch, `1` có lệch (hoặc độ phủ dưới `--min-coverage`), `2` dùng sai hoặc tài liệu có lỗi (`lint` liệt kê trước).
 
 ### Route cố ý không ghi vào tài liệu, và lệch đang có sẵn
 
@@ -148,6 +151,23 @@ Status codes that differ (1, not a failure):
 
 Một mã trạng thái được coi là đã mô tả khi tài liệu có nó theo số, theo khoảng (`2XX`) hoặc dưới `default`. Các khác biệt này là ghi chú: mã thoát vẫn là `0` trừ khi có `--strict`. Pattern bỏ qua loại chúng ra như các phần khác; baseline không chứa chúng. `openapi-drift routes` cho thấy những gì đọc được ở mỗi handler (`?page&sort -> 200`).
 
+### Độ phủ
+
+`--coverage` thêm một dòng vào báo cáo cho biết code phục vụ được bao nhiêu phần của tài liệu:
+
+```
+$ openapi-drift check --spec openapi.yaml --source src --coverage
+openapi.yaml: 10 operations under /api
+src: 9 routes under /api
+  read from the code: global prefix /api (src/main.ts:6)
+Coverage: 7 of 10 operations have a handler (70%); status codes: 7 of 7 described are answered (100%) by the 7 handlers that show their statuses
+```
+
+- **Operation**: số operation của tài liệu có route trong code phục vụ, trên tổng số operation. Operation mà pattern bỏ qua nhắc tới bị loại khỏi cả hai số; lệch mà baseline chấp nhận vẫn tính là chưa được phục vụ.
+- **Mã trạng thái**: trên các handler cho thấy mã trạng thái chúng trả về (xem [Ngoài đường dẫn](#ngoài-đường-dẫn)), số mã response tài liệu mô tả cho các operation đó mà handler được thấy là trả về. `2XX` được tính là đã trả khi handler trả bất kỳ mã nào trong khoảng đó; `default` không phải một mã riêng và không được đếm. Những gì đọc được từ handler thường chỉ là một phần (NestJS chỉ cho thấy mã của câu trả lời thành công), nên hãy xem tỉ lệ này là mức tối thiểu. Dòng này không có khi không handler nào cho thấy mã trạng thái.
+
+Tỉ lệ được làm tròn xuống một chữ số thập phân. `--min-coverage 80` làm lần chạy thất bại (mã `1`) khi dưới 80% operation có handler, với một dòng cuối nói rõ điều đó, kể cả khi có `--fail-on none`; tỉ lệ mã trạng thái chỉ được báo cáo, không bao giờ làm fail. Báo cáo JSON có các con số dưới `coverage` (kèm `min` và `met` khi có ngưỡng), còn báo cáo Markdown, tức job summary của Action, có dòng này ngay dưới tiêu đề.
+
 ## GitHub Action
 
 ```yaml
@@ -174,22 +194,24 @@ jobs:
 
 Báo cáo Markdown vào job summary và file `openapi-drift.md` (input `report`); output `drifts` mang số lệch, để bước sau đăng thành bình luận trên pull request. Mỗi chỗ lệch còn là một annotation trên đúng dòng của nó: route trong code, hoặc operation trong tài liệu.
 
-| Input         | Mặc định           | Ý nghĩa                                                                                                  |
-| ------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `spec`        | (bắt buộc)         | Tài liệu OpenAPI 3.x hoặc Swagger 2.0, YAML hoặc JSON.                                                   |
-| `source`      | `.`                | Thư mục mã nguồn backend.                                                                                |
-| `framework`   | `auto`             | `nestjs`, `express`, `fastify`, `hono`, `spring` hoặc `auto`.                                            |
-| `prefix`      | `''`               | Như `--prefix`.                                                                                          |
-| `fail-on`     | `any`              | `any`, `spec`, `code` hoặc `none`, như `--fail-on`.                                                      |
-| `ignore`      | `''`               | Các ignore pattern, mỗi dòng một pattern.                                                                |
-| `ignore-file` | `''`               | File chứa ignore pattern.                                                                                |
-| `baseline`    | `''`               | File baseline; chỗ lệch có trong đó được báo cáo nhưng không làm job thất bại.                           |
-| `strict`      | `'false'`          | `'true'`: query parameter và mã trạng thái khác nhau làm job thất bại.                                   |
-| `report`      | `openapi-drift.md` | Nơi ghi báo cáo Markdown; báo cáo cũng được thêm vào job summary.                                        |
-| `annotations` | `'true'`           | Mỗi chỗ lệch thành một error, warning hoặc notice trên dòng của nó trong pull request. `'false'` để tắt. |
-| `sarif`       | `''`               | Nơi ghi log SARIF 2.1.0, cho `github/codeql-action/upload-sarif`. Để trống thì không ghi.                |
+| Input          | Mặc định           | Ý nghĩa                                                                                                  |
+| -------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `spec`         | (bắt buộc)         | Tài liệu OpenAPI 3.x hoặc Swagger 2.0, YAML hoặc JSON.                                                   |
+| `source`       | `.`                | Thư mục mã nguồn backend.                                                                                |
+| `framework`    | `auto`             | `nestjs`, `express`, `fastify`, `hono`, `spring` hoặc `auto`.                                            |
+| `prefix`       | `''`               | Như `--prefix`.                                                                                          |
+| `fail-on`      | `any`              | `any`, `spec`, `code` hoặc `none`, như `--fail-on`.                                                      |
+| `ignore`       | `''`               | Các ignore pattern, mỗi dòng một pattern.                                                                |
+| `ignore-file`  | `''`               | File chứa ignore pattern.                                                                                |
+| `baseline`     | `''`               | File baseline; chỗ lệch có trong đó được báo cáo nhưng không làm job thất bại.                           |
+| `strict`       | `'false'`          | `'true'`: query parameter và mã trạng thái khác nhau làm job thất bại.                                   |
+| `coverage`     | `'false'`          | `'true'`: báo cáo cho biết code phục vụ được bao nhiêu phần của tài liệu, như `--coverage`.              |
+| `min-coverage` | `''`               | Một số phần trăm: job thất bại khi tỉ lệ operation có handler thấp hơn, như `--min-coverage`.            |
+| `report`       | `openapi-drift.md` | Nơi ghi báo cáo Markdown; báo cáo cũng được thêm vào job summary.                                        |
+| `annotations`  | `'true'`           | Mỗi chỗ lệch thành một error, warning hoặc notice trên dòng của nó trong pull request. `'false'` để tắt. |
+| `sarif`        | `''`               | Nơi ghi log SARIF 2.1.0, cho `github/codeql-action/upload-sarif`. Để trống thì không ghi.                |
 
-Output: `drifts` (số lệch), `report` (file Markdown) và `sarif` (file SARIF, khi có yêu cầu).
+Output: `drifts` (số lệch), `coverage` (phần trăm operation có handler, khi có `coverage` hoặc `min-coverage`), `report` (file Markdown) và `sarif` (file SARIF, khi có yêu cầu).
 
 Để thấy chỗ lệch trong **Security → Code scanning** của repository, với alert mở cho tới khi sửa xong, hãy ghi log SARIF và upload. Code scanning cần quyền `security-events: write`, miễn phí cho repository public; repository private cần GitHub Code Security.
 

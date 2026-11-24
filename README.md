@@ -64,6 +64,7 @@ openapi-drift lint --spec openapi.yaml                           # problems of t
 openapi-drift check --spec openapi.yaml --source src --ignore /health --ignore 'GET /internal/**'
 openapi-drift check --spec openapi.yaml --source src --baseline openapi-drift.json   # fail on new drift only
 openapi-drift check --spec openapi.yaml --source src --format sarif --output drift.sarif   # for code scanning
+openapi-drift check --spec openapi.yaml --source src --min-coverage 90   # fail below 90% of operations served
 ```
 
 | Option                 | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -80,8 +81,10 @@ openapi-drift check --spec openapi.yaml --source src --format sarif --output dri
 | `--baseline <file>`    | Drift that is known and accepted: it is reported and does not fail the run.                                                                                                                                                                                                                                                                                                                                                 |
 | `--update-baseline`    | Write the drift of this run to the `--baseline` file and exit `0`.                                                                                                                                                                                                                                                                                                                                                          |
 | `--strict`             | Query parameters and status codes that differ are always reported; with this they fail the run as well.                                                                                                                                                                                                                                                                                                                     |
+| `--coverage`           | Report how much of the document the code serves: the share of its operations that have a handler, and of the status codes they describe that the handlers answer (see [Coverage](#coverage)).                                                                                                                                                                                                                               |
+| `--min-coverage <pct>` | Exit `1` when less than this percent of the document's operations have a handler (`80` or `80%`), whatever `--fail-on` says. Implies `--coverage`.                                                                                                                                                                                                                                                                          |
 
-Exit codes: `0` no drift, `1` drift, `2` bad usage or a document with problems (`lint` lists them first).
+Exit codes: `0` no drift, `1` drift (or coverage below `--min-coverage`), `2` bad usage or a document with problems (`lint` lists them first).
 
 ### Routes left out on purpose, and drift you already have
 
@@ -154,6 +157,23 @@ Status codes that differ (1, not a failure):
 
 A status is described when the document has it by number, by range (`2XX`) or under `default`. These differences are notes: the exit code stays `0` unless `--strict` is given. Ignore patterns leave them out like the rest; a baseline does not hold them. `openapi-drift routes` shows what was read of each handler (`?page&sort -> 200`).
 
+### Coverage
+
+`--coverage` adds one line to the report on how much of the document the code serves:
+
+```
+$ openapi-drift check --spec openapi.yaml --source src --coverage
+openapi.yaml: 10 operations under /api
+src: 9 routes under /api
+  read from the code: global prefix /api (src/main.ts:6)
+Coverage: 7 of 10 operations have a handler (70%); status codes: 7 of 7 described are answered (100%) by the 7 handlers that show their statuses
+```
+
+- **Operations**: the operations of the document that a route of the code serves, over all of them. Operations the ignore patterns name are left out of both counts; drift a baseline accepts still counts as not served.
+- **Status codes**: over the handlers that show the statuses they answer with (see [Beyond the path](#beyond-the-path)), the response codes the document describes for those operations that a handler is seen to answer. `2XX` is answered by any status of that range; `default` is not a status of its own and is not counted. What a handler is seen to answer is often only part of it (NestJS shows the status of a successful answer), so read this share as a lower bound. It is left out when no handler shows a status.
+
+The share is rounded down to one decimal. `--min-coverage 80` fails the run (exit `1`) when less than 80% of the operations have a handler, with a last line that says so, even under `--fail-on none`; the status-code share is reported and never fails the run. The JSON report has the numbers under `coverage` (with `min` and `met` when a threshold is given), and the Markdown report, the Action's job summary, has the line under its heading.
+
 ## GitHub Action
 
 ```yaml
@@ -180,22 +200,24 @@ jobs:
 
 The Markdown report goes to the job summary and to `openapi-drift.md` (the `report` input), and the `drifts` output carries the count, so a later step can post it as a pull request comment. Each drift is also an annotation on its line: the route in the code, or the operation in the document.
 
-| Input         | Default            | Meaning                                                                                               |
-| ------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
-| `spec`        | (required)         | The OpenAPI 3.x or Swagger 2.0 document, YAML or JSON.                                                |
-| `source`      | `.`                | The backend source tree.                                                                              |
-| `framework`   | `auto`             | `nestjs`, `express`, `fastify`, `hono`, `spring` or `auto`.                                           |
-| `prefix`      | `''`               | As `--prefix`.                                                                                        |
-| `fail-on`     | `any`              | `any`, `spec`, `code` or `none`, as `--fail-on`.                                                      |
-| `ignore`      | `''`               | Ignore patterns, one a line.                                                                          |
-| `ignore-file` | `''`               | A file of ignore patterns.                                                                            |
-| `baseline`    | `''`               | A baseline file; the drift it lists is reported and does not fail the job.                            |
-| `strict`      | `'false'`          | `'true'`: query parameters and status codes that differ fail the job.                                 |
-| `report`      | `openapi-drift.md` | Where to write the Markdown report; it is also added to the job summary.                              |
-| `annotations` | `'true'`           | Each drift as an error, warning or notice on its line of the pull request. `'false'` leaves them out. |
-| `sarif`       | `''`               | Where to write a SARIF 2.1.0 log, for `github/codeql-action/upload-sarif`. Empty writes none.         |
+| Input          | Default            | Meaning                                                                                                  |
+| -------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `spec`         | (required)         | The OpenAPI 3.x or Swagger 2.0 document, YAML or JSON.                                                   |
+| `source`       | `.`                | The backend source tree.                                                                                 |
+| `framework`    | `auto`             | `nestjs`, `express`, `fastify`, `hono`, `spring` or `auto`.                                              |
+| `prefix`       | `''`               | As `--prefix`.                                                                                           |
+| `fail-on`      | `any`              | `any`, `spec`, `code` or `none`, as `--fail-on`.                                                         |
+| `ignore`       | `''`               | Ignore patterns, one a line.                                                                             |
+| `ignore-file`  | `''`               | A file of ignore patterns.                                                                               |
+| `baseline`     | `''`               | A baseline file; the drift it lists is reported and does not fail the job.                               |
+| `strict`       | `'false'`          | `'true'`: query parameters and status codes that differ fail the job.                                    |
+| `coverage`     | `'false'`          | `'true'`: the report says how much of the document the code serves, as `--coverage`.                     |
+| `min-coverage` | `''`               | A percentage: the job fails when fewer of the document's operations have a handler, as `--min-coverage`. |
+| `report`       | `openapi-drift.md` | Where to write the Markdown report; it is also added to the job summary.                                 |
+| `annotations`  | `'true'`           | Each drift as an error, warning or notice on its line of the pull request. `'false'` leaves them out.    |
+| `sarif`        | `''`               | Where to write a SARIF 2.1.0 log, for `github/codeql-action/upload-sarif`. Empty writes none.            |
 
-Outputs: `drifts` (the count), `report` (the Markdown file) and `sarif` (the SARIF file, when asked for).
+Outputs: `drifts` (the count), `coverage` (the percentage of operations with a handler, when `coverage` or `min-coverage` asks for it), `report` (the Markdown file) and `sarif` (the SARIF file, when asked for).
 
 To see the drift under the repository's **Security → Code scanning** as well, with alerts that stay open until the drift is fixed, write a SARIF log and upload it. Code scanning needs the `security-events: write` permission and is free for public repositories; private ones need GitHub Code Security.
 
