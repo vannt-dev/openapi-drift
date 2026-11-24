@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.7.0](https://github.com/vannt-dev/openapi-drift/compare/v0.6.0...v0.7.0) (2026-11-24)
+
+
+### Features
+
+* report coverage of the document with --coverage and --min-coverage ([#37](https://github.com/vannt-dev/openapi-drift/issues/37)) ([6e56c53](https://github.com/vannt-dev/openapi-drift/commit/6e56c536cc6e9a7985d7d151968ba42d0a5cc162))
+
 ## [0.6.0](https://github.com/vannt-dev/openapi-drift/compare/v0.5.1...v0.6.0) (2026-11-15)
 
 
