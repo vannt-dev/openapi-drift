@@ -1,5 +1,7 @@
 import { basePath, operations, normalizePath, pathParams, joinPath } from './openapi.ts';
+import { parseIgnore } from './filter.ts';
 import type {
+  Coverage,
   DriftResult,
   FailOn,
   MissingInCode,
@@ -26,21 +28,7 @@ import type {
  * `prefix`; paths are compared with parameter names and case ignored.
  */
 export function compare(doc: OpenApiDocument, routes: Route[], { prefix = '' }: { prefix?: string } = {}): DriftResult {
-  const base = basePath(doc);
-  const specOps = operations(doc).map((op) => {
-    const full = joinPath(base, op.path);
-    return { ...op, full, key: `${op.method} ${normalizePath(full)}` };
-  });
-  const codeRoutes = routes.map((r) => ({ ...r, key: `${r.method} ${normalizePath(r.path)}` }));
-
-  const specByKey = new Map(specOps.map((op) => [op.key, op]));
-  // What is written comes first, so that it is the one compared. What the framework serves by itself can only
-  // match an operation of the document; it is never drift, and it is not counted.
-  const written = codeRoutes.filter((r) => !r.implicit);
-  const writtenByKey = new Map<string, (typeof codeRoutes)[number]>();
-  for (const r of written) if (!writtenByKey.has(r.key)) writtenByKey.set(r.key, r);
-  const codeByKey = new Map(writtenByKey);
-  for (const r of codeRoutes) if (!codeByKey.has(r.key)) codeByKey.set(r.key, r);
+  const { base, specOps, specByKey, written, writtenByKey, codeByKey } = match(doc, routes);
 
   const missingInSpec: MissingInSpec[] = [];
   const seen = new Set<string>();
@@ -108,6 +96,65 @@ export function compare(doc: OpenApiDocument, routes: Route[], { prefix = '' }: 
     queryMismatch,
     statusMismatch,
   };
+}
+
+/** The operations of the document and the routes of the code, keyed alike (`get /api/users/{}`). */
+function match(doc: OpenApiDocument, routes: Route[]) {
+  const base = basePath(doc);
+  const specOps = operations(doc).map((op) => {
+    const full = joinPath(base, op.path);
+    return { ...op, full, key: `${op.method} ${normalizePath(full)}` };
+  });
+  const codeRoutes = routes.map((r) => ({ ...r, key: `${r.method} ${normalizePath(r.path)}` }));
+
+  const specByKey = new Map(specOps.map((op) => [op.key, op]));
+  // What is written comes first, so that it is the one compared. What the framework serves by itself can only
+  // match an operation of the document; it is never drift, and it is not counted.
+  const written = codeRoutes.filter((r) => !r.implicit);
+  const writtenByKey = new Map<string, (typeof codeRoutes)[number]>();
+  for (const r of written) if (!writtenByKey.has(r.key)) writtenByKey.set(r.key, r);
+  const codeByKey = new Map(writtenByKey);
+  for (const r of codeRoutes) if (!codeByKey.has(r.key)) codeByKey.set(r.key, r);
+  return { base, specOps, specByKey, written, writtenByKey, codeByKey };
+}
+
+/** A share as a percentage, rounded down to one decimal, so that what is shown never passes a threshold it misses. */
+const percent = (part: number, whole: number): number => (whole ? Math.floor((part * 1000) / whole) / 10 : 100);
+
+/**
+ * How much of the document the code serves: the share of its operations that have a handler and, where handlers
+ * show the statuses they answer with, the share of the documented status codes they answer. Operations the ignore
+ * `patterns` name are left out of both. `default` is not a status of its own and is not counted; `2XX` is answered
+ * by any status of that range.
+ *
+ * A document with no operation (or no status to count) is wholly covered.
+ */
+export function coverage(doc: OpenApiDocument, routes: Route[], { ignore = [] }: { ignore?: string[] } = {}): Coverage {
+  const { specOps, codeByKey } = match(doc, routes);
+  const rules = ignore.map(parseIgnore);
+  const kept = specOps.filter((op) => !rules.some((rule) => rule(op.method, op.full)));
+  let handled = 0;
+  const statuses = { documented: 0, answered: 0, operations: 0 };
+  for (const op of kept) {
+    const r = codeByKey.get(op.key);
+    if (!r) continue;
+    handled++;
+    const documented = op.responses.filter((k) => k.toLowerCase() !== 'default');
+    if (!r.statuses?.length || !documented.length) continue;
+    statuses.operations++;
+    statuses.documented += documented.length;
+    statuses.answered += documented.filter((k) => r.statuses?.some((s) => describes([k], s))).length;
+  }
+  return {
+    operations: { documented: kept.length, handled, percent: percent(handled, kept.length) },
+    ...(statuses.operations ? { statuses: { ...statuses, percent: percent(statuses.answered, statuses.documented) } } : {}),
+    ...(kept.length < specOps.length ? { ignored: specOps.length - kept.length } : {}),
+  };
+}
+
+/** Whether the share of operations with a handler is below `min` percent, compared exactly, not as rounded. */
+export function belowCoverage(c: Coverage, min: number): boolean {
+  return c.operations.handled * 100 < min * c.operations.documented;
 }
 
 /** Whether a document's responses describe a status: by its number, by its range (`2XX`) or by `default`. */

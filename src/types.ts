@@ -120,6 +120,21 @@ export interface StatusMismatch {
   line: number;
 }
 
+/** How much of the document the code serves, as `--coverage` reports it. */
+export interface Coverage {
+  /** The operations of the document, and those a route of the code serves; `percent` rounded down to one decimal. */
+  operations: { documented: number; handled: number; percent: number };
+  /**
+   * Over the operations with a handler that shows the statuses it answers with: the status codes the document
+   * describes for them (`default` left out) and those the handlers answer. Absent when no handler shows any.
+   */
+  statuses?: { documented: number; answered: number; operations: number; percent: number };
+  /** Operations the ignore patterns left out of the count. */
+  ignored?: number;
+  /** The `--min-coverage` threshold, in percent, when one was given. */
+  min?: number;
+}
+
 export interface DriftResult {
   base: string;
   prefix: string;
@@ -137,6 +152,8 @@ export interface DriftResult {
   accepted?: { missingInSpec: MissingInSpec[]; missingInCode: MissingInCode[] };
   /** Entries of the baseline that drift no more. */
   resolved?: string[];
+  /** How much of the document the code serves, when `--coverage` asked for it. */
+  coverage?: Coverage;
 }
 
 /** Drift that is known and accepted, as `--update-baseline` writes it: `GET /api/health`, one entry a drift. */
