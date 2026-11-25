@@ -5,6 +5,7 @@ export {
   operations,
   operationLines,
   basePath,
+  serverNotes,
   normalizePath,
   pathParams,
   joinPath,

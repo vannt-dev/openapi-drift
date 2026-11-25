@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadSpec, lintOpenApi, operationLines } from './openapi.ts';
+import { loadSpec, lintOpenApi, operationLines, serverNotes } from './openapi.ts';
 import { extractRoutes } from './extract/index.ts';
 import { belowCoverage, compare, coverage, hasDrift } from './compare.ts';
 import { applyBaseline, applyIgnore, baselineOf, loadBaseline, readIgnoreFile } from './filter.ts';
@@ -33,8 +33,8 @@ options:
                          mount built dynamically, a NestJS prefix from the configuration). For NestJS it
                          is not needed otherwise: setGlobalPrefix and URI versioning are read from the
                          code. Given, it replaces what the code says (/ for no prefix at all). The
-                         document's own base path (servers[0].url, or basePath in
-                         Swagger 2.0) is read by itself
+                         document's own base path (servers[0].url with its variables'
+                         defaults, or basePath in Swagger 2.0) is read by itself
   --format <name>        ${FORMATS.join(', ')} (default: text); sarif is a SARIF 2.1.0 log for
                          code scanning, github is workflow commands that annotate the lines on GitHub
   --output <file>        write the report there as well as to stdout
@@ -166,6 +166,13 @@ function needSpec(opts: Options): { file: string; doc: OpenApiDocument; problems
   return { file: opts.spec, doc, problems: lintOpenApi(doc) };
 }
 
+/** What the document leaves unsaid about its base path (a server variable with no default), on stderr. */
+function sayServer(file: string, doc: OpenApiDocument, io: Io): void {
+  for (const n of serverNotes(doc))
+    io.err(`openapi-drift: ${file}: ${n}
+`);
+}
+
 function oneOf<T extends string>(name: string, value: string | undefined, allowed: readonly T[], fallback: T): T {
   if (value === undefined) return fallback;
   if ((allowed as readonly string[]).includes(value)) return value as T;
@@ -180,7 +187,8 @@ function say(app: AppSettings | undefined, io: Io): void {
 }
 
 function lint(opts: Options, io: Io): number {
-  const { file, problems } = needSpec(opts);
+  const { file, doc, problems } = needSpec(opts);
+  sayServer(file, doc, io);
   if (!problems.length) {
     io.out(`${file}: no problems\n`);
     return 0;
@@ -236,6 +244,7 @@ function check(opts: Options, io: Io): number {
     for (const p of problems) io.err(`  ${p}\n`);
     return 2;
   }
+  sayServer(file, doc, io);
   const source = opts.source ?? '.';
   if (!fs.existsSync(source)) throw new Error(`--source ${source}: no such directory`);
   const format = oneOf<Format>('format', opts.format, FORMATS, 'text');
