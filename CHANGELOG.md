@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 release-please from the commit messages; what a release means for users is
 added by hand below its heading.
 
+## [0.7.1](https://github.com/vannt-dev/openapi-drift/compare/v0.7.0...v0.7.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **openapi:** use server variable defaults in the base path; read file: URL refs ([#39](https://github.com/vannt-dev/openapi-drift/issues/39)) ([e43bd23](https://github.com/vannt-dev/openapi-drift/commit/e43bd232e29cd15deaaca81de1f814b48f18f120))
+* **openapi:** use server variable defaults in the base path; read file: URL refs ([#39](https://github.com/vannt-dev/openapi-drift/issues/39)) ([1cc0c60](https://github.com/vannt-dev/openapi-drift/commit/1cc0c60eba0238f7260bf6197476f140e1acbb72))
+
 ## [0.7.0](https://github.com/vannt-dev/openapi-drift/compare/v0.6.0...v0.7.0) (2026-11-24)
 
 
