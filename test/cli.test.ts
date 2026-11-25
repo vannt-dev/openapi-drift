@@ -164,3 +164,26 @@ test('check: a document of another version exits 2 and names the versions that a
   assert.match(r.stderr, /old\.yaml: 1 problem; fix the document first/);
   assert.match(r.stderr, /not a supported version \(swagger: 1\.2\): 'openapi' must be 3\.x, or 'swagger' must be "2\.0"/);
 });
+
+test('check and lint: a server variable with no default is named on stderr; one with a default is the base path', () => {
+  const dir = tempDir();
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.writeFileSync(path.join(dir, 'src', 'app.js'), "const app = require('express')();\napp.get('/v1/ping', (q, s) => s.end());\n");
+  const spec = (variables: string): string =>
+    "openapi: 3.0.0\ninfo: {title: t, version: '1'}\n" +
+    `servers:\n  - url: 'https://api.example.com/{version}'\n    variables: ${variables}\n` +
+    "paths:\n  /ping:\n    get:\n      responses:\n        '200': {description: ok}\n";
+  fs.writeFileSync(path.join(dir, 'openapi.yaml'), spec('{version: {default: v1}}'));
+  const ok = cli(['check', '--spec', 'openapi.yaml', '--source', 'src'], dir);
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.equal(ok.stderr, '');
+
+  fs.writeFileSync(path.join(dir, 'openapi.yaml'), spec('{version: {enum: [v1]}}'));
+  const note = /^openapi-drift: openapi\.yaml: servers\[0\]\.url '[^']+': variable \{version\} has no default; /m;
+  const drift = cli(['check', '--spec', 'openapi.yaml', '--source', 'src'], dir);
+  assert.equal(drift.status, 1);
+  assert.match(drift.stderr, note);
+  const lint = cli(['lint', '--spec', 'openapi.yaml'], dir);
+  assert.equal(lint.status, 0, 'a note, not a problem');
+  assert.match(lint.stderr, note);
+});

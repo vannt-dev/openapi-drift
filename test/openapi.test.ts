@@ -2,7 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { basePath, joinPath, lintOpenApi, loadSpec, normalizePath, operations, pathParams, specVersion } from '../src/openapi.ts';
+import { pathToFileURL } from 'node:url';
+import {
+  basePath,
+  joinPath,
+  lintOpenApi,
+  loadSpec,
+  normalizePath,
+  operations,
+  pathParams,
+  refFile,
+  serverNotes,
+  specVersion,
+} from '../src/openapi.ts';
 import { fixture, tempDir } from './helpers.ts';
 
 test('loadSpec reads YAML and JSON, and names the file in its errors', () => {
@@ -40,6 +52,65 @@ test('basePath reads the path of a templated or protocol-relative server URL', (
   assert.equal(basePath({ servers: [{ url: '//api.example.com' }] }), '');
   assert.equal(basePath({ servers: [{ url: 'https://{host}/{basePath}' }] }), '/{basePath}');
   assert.equal(basePath({ servers: [{ url: '{basePath}' }] }), '/{basePath}');
+});
+
+test('basePath puts the default of each server variable in its place', () => {
+  const version = { version: { default: 'v1', enum: ['v1', 'v2'] } };
+  assert.equal(basePath({ servers: [{ url: 'https://api.example.com/{version}', variables: version }] }), '/v1');
+  assert.equal(basePath({ servers: [{ url: '/{basePath}/api', variables: { basePath: { default: 'shop' } } }] }), '/shop/api');
+  assert.equal(
+    basePath({
+      servers: [
+        {
+          url: '{scheme}://{host}:{port}/{prefix}/{version}/',
+          variables: {
+            scheme: { default: 'https' },
+            host: { default: 'api.example.com' },
+            port: { default: 8443 },
+            prefix: { default: 'api' },
+            ...version,
+          },
+        },
+      ],
+    }),
+    '/api/v1'
+  );
+  // a default may hold the whole URL or several segments
+  assert.equal(basePath({ servers: [{ url: '{server}', variables: { server: { default: 'https://api.example.com/v2' } } }] }), '/v2');
+  assert.equal(basePath({ servers: [{ url: '/{base}', variables: { base: { default: 'api/v3' } } }] }), '/api/v3');
+  // an empty default leaves no empty segment, and `//api` is still a path, not a host
+  assert.equal(basePath({ servers: [{ url: '/{tenant}/api', variables: { tenant: { default: '' } } }] }), '/api');
+  // only the first server is read, as before
+  assert.equal(
+    basePath({
+      servers: [
+        { url: '/{v}', variables: { v: { default: 'v1' } } },
+        { url: '/{v}', variables: { v: { default: 'v2' } } },
+      ],
+    }),
+    '/v1'
+  );
+  // Swagger 2.0 has no server variables
+  assert.equal(basePath({ swagger: '2.0', basePath: '/{v}', servers: [{ url: '/x', variables: { v: { default: 'v1' } } }] }), '/{v}');
+});
+
+test('a server variable with no default stays as written in the base path, and serverNotes names it', () => {
+  const declared = {
+    servers: [{ url: 'https://api.example.com/{version}/{area}', variables: { version: { enum: ['v1'] }, area: { default: 'shop' } } }],
+  };
+  assert.equal(basePath(declared), '/{version}/shop');
+  assert.deepEqual(serverNotes(declared), [
+    "servers[0].url 'https://api.example.com/{version}/{area}': variable {version} has no default; " +
+      'the base path keeps it as written (/{version}/shop), so it matches only a route with a path parameter there',
+  ]);
+  const undeclared = { servers: [{ url: '/{basePath}' }] };
+  assert.equal(basePath(undeclared), '/{basePath}');
+  assert.match(serverNotes(undeclared)[0] ?? '', /variable \{basePath\} is not declared under servers\[0\]\.variables/);
+  // a variable in the host is not part of the base path, and nothing is said about it
+  assert.deepEqual(serverNotes({ servers: [{ url: 'https://{host}/v1' }] }), []);
+  assert.deepEqual(serverNotes({ servers: [{ url: '/{v}', variables: { v: { default: 'v1' } } }] }), []);
+  assert.deepEqual(serverNotes({}), []);
+  assert.deepEqual(serverNotes({ swagger: '2.0', basePath: '/{v}' }), []);
 });
 
 test('operations, pathParams, normalizePath and joinPath', () => {
@@ -88,6 +159,58 @@ test('a $ref with a Windows drive letter is a file, not a URL', () => {
   assert.deepEqual(
     operations(loadSpec(file)).map((op) => `${op.method} ${op.path}`),
     ['get /users', 'post /users']
+  );
+});
+
+test('refFile reads Windows and POSIX paths and file: URLs alike, on any system', () => {
+  // Windows rules: a drive letter is a path, not a URL scheme
+  const api = path.win32.join('D:\\', 'api');
+  const common = path.win32.join('C:\\', 'specs', 'common.yaml');
+  assert.equal(refFile(common, api, true), 'C:\\specs\\common.yaml');
+  assert.equal(refFile('C:/specs/common.yaml', api, true), common);
+  assert.equal(refFile('c:\\specs\\common.yaml', api, true), 'c:\\specs\\common.yaml');
+  assert.equal(refFile('file:///C:/my%20specs/common.yaml', api, true), 'C:\\my specs\\common.yaml');
+  assert.equal(refFile('FILE:///C:/specs/common.yaml', api, true), common);
+  assert.equal(refFile('file://server/share/common.yaml', api, true), '\\\\server\\share\\common.yaml');
+  assert.equal(refFile('../common.yaml', path.win32.join(api, 'paths'), true), 'D:\\api\\common.yaml');
+  assert.throws(() => refFile('file:///srv/specs/common.yaml', api, true), /absolute/);
+  // POSIX rules
+  assert.equal(refFile('file:///srv/my%20specs/common.yaml', '/api', false), '/srv/my specs/common.yaml');
+  assert.equal(refFile('/srv/specs/common.yaml', '/api', false), '/srv/specs/common.yaml');
+  assert.equal(refFile('../common.yaml', '/api/paths', false), '/api/common.yaml');
+  assert.throws(() => refFile('file://server/share/common.yaml', '/api', false), /host/);
+  // any other URL is not fetched
+  for (const windows of [true, false]) {
+    assert.equal(refFile('https://example.com/common.yaml', '/api', windows), undefined);
+    assert.equal(refFile('urn:x:common', '/api', windows), undefined);
+  }
+});
+
+test('a $ref given as a file: URL is read like a path', () => {
+  const file = path.join(tempDir(), 'openapi.yaml');
+  const spec = (users: string, byId: string): string =>
+    [
+      'openapi: 3.0.3',
+      "info: { title: t, version: '1' }",
+      'paths:',
+      '  /users:',
+      `    $ref: '${users}'`,
+      '  /users/{id}:',
+      `    $ref: '${byId}'`,
+      '',
+    ].join('\n');
+  const url = (f: string): string => pathToFileURL(fixture('split', 'paths', f)).href;
+  writeFileSync(file, spec(url('users.yaml'), `${url('by-id.yaml')}#/user`));
+  assert.deepEqual(
+    operations(loadSpec(file)).map((op) => `${op.method} ${op.path}`),
+    ['get /users', 'post /users', 'get /users/{id}']
+  );
+  // a file: URL that is not a path on this system is named in the error
+  const foreign = process.platform === 'win32' ? 'file:///srv/specs/users.yaml' : 'file://server/share/users.yaml';
+  writeFileSync(file, spec(foreign, `${url('by-id.yaml')}#/user`));
+  assert.throws(
+    () => loadSpec(file),
+    (e: Error) => e.message.startsWith(`${path.relative(process.cwd(), file).replace(/\\/g, '/')}: $ref '${foreign}': `)
   );
 });
 

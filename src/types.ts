@@ -195,7 +195,8 @@ export interface OpenApiDocument {
   /** Swagger 2.0 declares itself here (`swagger: "2.0"`) and keeps its prefix in `basePath`. */
   swagger?: unknown;
   basePath?: unknown;
-  servers?: { url?: unknown }[];
+  /** OpenAPI 3: where the API is; `variables` give the `default` of each `{name}` in the URL. */
+  servers?: { url?: unknown; variables?: unknown }[];
   paths?: Record<string, PathItem | undefined>;
   components?: { parameters?: Record<string, Parameter | undefined> };
   /** Swagger 2.0: the shared parameters (`#/parameters/limit`). */

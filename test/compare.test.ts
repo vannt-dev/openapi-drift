@@ -6,6 +6,7 @@ import { extractNestRoutes } from '../src/extract/nestjs.ts';
 import { extractExpressRoutes } from '../src/extract/express.ts';
 import { markdownReport, textReport, jsonReport } from '../src/report.ts';
 import { fixture, ROOT } from './helpers.ts';
+import type { DriftResult, OpenApiDocument, Route } from '../src/types.ts';
 
 const key = (r: { method: string; path: string }): string => `${r.method.toUpperCase()} ${r.path}`;
 
@@ -107,4 +108,23 @@ test('a Swagger 2.0 document, YAML or JSON, drifts as its OpenAPI 3 form does', 
     assert.deepEqual(lintOpenApi(doc), [], file);
     assert.deepEqual(compare(doc, routes, { prefix: '/api' }), expected, file);
   }
+});
+
+test('server variables: a default is the base path; a variable with none matches only a path parameter', () => {
+  const doc = (variables: unknown): OpenApiDocument => ({
+    openapi: '3.0.3',
+    servers: [{ url: 'https://api.example.com/{version}', variables }],
+    paths: { '/users': { get: { responses: { '200': { description: 'ok' } } } } },
+  });
+  const route = (p: string): Route => ({ method: 'get', path: p, file: 'app.js', line: 1 });
+  const drift = (r: DriftResult): number => r.missingInSpec.length + r.missingInCode.length;
+
+  const withDefault = compare(doc({ version: { default: 'v1' } }), [route('/v1/users')]);
+  assert.equal(withDefault.base, '/v1');
+  assert.equal(drift(withDefault), 0);
+
+  const noDefault = doc({ version: { enum: ['v1'] } });
+  assert.equal(compare(noDefault, [route('/v1/users')]).base, '/{version}');
+  assert.equal(drift(compare(noDefault, [route('/v1/users')])), 2);
+  assert.equal(drift(compare(noDefault, [route('/{v}/users')])), 0);
 });

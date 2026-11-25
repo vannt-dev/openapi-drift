@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import YAML, { LineCounter, isMap, isScalar } from 'yaml';
 import { METHODS, type OpenApiDocument, type Operation, type OperationObject, type Parameter, type PathItem } from './types.ts';
 
@@ -48,14 +49,18 @@ function inlineSplit(doc: OpenApiDocument, main: string): void {
   const follow = (node: unknown, file: string, seen = new Set<string>()): { value: unknown; file: string } => {
     if (!node || typeof node !== 'object' || typeof (node as { $ref?: unknown }).$ref !== 'string') return { value: node, file };
     const ref = (node as { $ref: string }).$ref;
-    // a URL is not fetched; a drive letter (`C:/specs/x.yaml`) is a file on Windows
-    if (/^[a-z][a-z0-9+.-]*:/i.test(ref) && !/^[a-z]:[\\/]/i.test(ref)) return { value: node, file };
     const hash = ref.indexOf('#');
     const target = hash < 0 ? ref : ref.slice(0, hash);
     const pointer = hash < 0 ? '' : ref.slice(hash + 1);
     // the main document's own references are followed where they are used
     if (!target && path.resolve(file) === path.resolve(main)) return { value: node, file };
-    const abs = target ? path.resolve(path.dirname(file), target) : path.resolve(file);
+    let abs: string | undefined;
+    try {
+      abs = target ? refFile(target, path.dirname(file)) : path.resolve(file);
+    } catch (e) {
+      throw new Error(`${shown(file)}: $ref '${ref}': ${(e as Error).message}`, { cause: e });
+    }
+    if (abs === undefined) return { value: node, file }; // a URL is not fetched
     const key = `${abs}#${pointer}`;
     if (seen.has(key)) throw new Error(`${shown(file)}: $ref '${ref}' refers back to itself`);
     seen.add(key);
@@ -107,6 +112,19 @@ function inlineSplit(doc: OpenApiDocument, main: string): void {
     if (!shared || typeof shared !== 'object' || Array.isArray(shared)) continue;
     for (const [name, given] of Object.entries(shared)) shared[name] = (params([given], main) as Parameter[])[0];
   }
+}
+
+/**
+ * The file the part of a `$ref` before `#` names, resolved against `dir`: a relative or absolute path (on Windows
+ * also `C:\specs\x.yaml` and `C:/specs/x.yaml`, a drive letter not being a URL scheme) or a `file:` URL
+ * (`file:///C:/specs/x.yaml`, `file:///srv/specs/x.yaml`). Undefined for any other URL, which is not fetched.
+ * Throws when a `file:` URL is not a path on this system. `windows` picks the rules of the system, for tests.
+ */
+export function refFile(target: string, dir: string, windows = process.platform === 'win32'): string | undefined {
+  const p = windows ? path.win32 : path.posix;
+  if (/^file:/i.test(target)) return p.resolve(fileURLToPath(target, { windows }));
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^[a-z]:[\\/]/i.test(target)) return undefined;
+  return p.resolve(dir, target);
 }
 
 /**
@@ -200,21 +218,53 @@ function refs(node: unknown, out: string[] = []): string[] {
 /**
  * The prefix a document puts in front of its paths, '' when there is none or it is `/`. For Swagger 2.0 it is
  * `basePath` (`/api/` -> `/api`); `host` and `schemes` say where the API is, not what its routes are. For
- * OpenAPI 3 it is the path part of the first server URL (`https://api.example.com/v1` -> `/v1`, `/api` -> `/api`). The host is dropped also when the scheme is a variable (`{scheme}://host/v1`) or left out
- * (`//host/v1`). Server variables (`{basePath}`) are left as written.
+ * OpenAPI 3 it is the path part of the first server URL (`https://api.example.com/v1` -> `/v1`, `/api` -> `/api`).
+ * The host is dropped also when the scheme is a variable (`{scheme}://host/v1`) or left out (`//host/v1`).
+ * Server variables are replaced by their `default` (`/{version}` with `version: {default: v1}` -> `/v1`); one
+ * with no default is left as written (`/{version}`), so it matches only a route with a path parameter in that
+ * place, and `serverNotes` names it.
  */
 export function basePath(doc: OpenApiDocument): string {
   const swagger2 = specVersion(doc) === '2.0';
-  const url = swagger2 ? doc.basePath : doc.servers?.[0]?.url;
-  if (typeof url !== 'string' || !url.trim()) return '';
-  let p = url.trim();
-  if (!swagger2 && /^(?:[a-z][a-z0-9+.-]*:|\{[^/{}]*\}:)?\/\//i.test(p)) {
+  const raw = swagger2 ? doc.basePath : doc.servers?.[0]?.url;
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+  let p = swagger2 ? raw.trim() : withDefaults(raw.trim(), doc.servers?.[0]?.variables);
+  // `/{basePath}/api` is a path whatever the default is, also an empty one (`//api` is not a host)
+  if (!swagger2 && !/^\/(?!\/)/.test(raw.trim()) && /^(?:[a-z][a-z0-9+.-]*:|\{[^/{}]*\}:)?\/\//i.test(p)) {
     const i = p.indexOf('/', p.indexOf('//') + 2);
     p = i < 0 ? '' : p.slice(i);
   }
-  p = p.replace(/\/+$/, '');
+  p = p.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
   if (p === '' || p === '/') return '';
   return p.startsWith('/') ? p : `/${p}`;
+}
+
+/** A server URL with each `{name}` replaced by the `default` of its variable; one with no default is left as written. */
+function withDefaults(url: string, variables: unknown): string {
+  const vars = variables && typeof variables === 'object' && !Array.isArray(variables) ? (variables as Record<string, unknown>) : {};
+  return url.replace(/\{([^{}]*)\}/g, (whole, name: string) => {
+    const v = Object.hasOwn(vars, name) ? vars[name] : undefined;
+    const d = v && typeof v === 'object' ? (v as { default?: unknown }).default : undefined;
+    return typeof d === 'string' || typeof d === 'number' ? String(d) : whole;
+  });
+}
+
+/**
+ * What a person should know about the base path of a document: the server variables left in it because they have
+ * no `default` (which OpenAPI requires), each a line. Empty when there is nothing to say.
+ */
+export function serverNotes(doc: OpenApiDocument): string[] {
+  if (specVersion(doc) === '2.0') return [];
+  const server = doc.servers?.[0];
+  const url = server?.url;
+  if (typeof url !== 'string') return [];
+  const vars = server?.variables && typeof server.variables === 'object' ? (server.variables as Record<string, unknown>) : {};
+  const base = basePath(doc);
+  return [...new Set(pathParams(base))].map(
+    (name) =>
+      `servers[0].url '${url}': variable {${name}} ${Object.hasOwn(vars, name) ? 'has no default' : 'is not declared under servers[0].variables'}; ` +
+      `the base path keeps it as written (${base}), so it matches only a route with a path parameter there`
+  );
 }
 
 /**
